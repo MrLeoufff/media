@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+stack_start() {
+    require_root
+    compose up -d
+    media_success "MediaStack démarrée."
+}
+
+stack_stop() {
+    require_root
+    compose down
+    media_success "MediaStack arrêtée."
+}
+
+stack_restart() {
+    require_root
+    compose down
+    compose up -d
+    media_success "MediaStack redémarrée."
+}
+
+stack_status() {
+    media_header
+    compose ps
+}
+
+stack_logs() {
+    local service="${1:-}"
+    if [[ -n "${service}" ]]; then
+        compose logs --tail 100 -f "${service}"
+    else
+        compose logs --tail 100 -f
+    fi
+}
+
+stack_update() {
+    require_root
+    compose pull
+    compose up -d --remove-orphans
+    media_success "Images et conteneurs mis à jour."
+}

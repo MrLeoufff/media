@@ -1,0 +1,26 @@
+name: mediastack-jellyfin
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+
+    volumes:
+      - /opt/media/jellyfin/config:/config
+      - /opt/media/jellyfin/cache:/cache
+      - /opt/media/media:/media
+
+    devices:
+      - /dev/dri:/dev/dri
+
+    group_add:
+      - "44"
+      - "992"
+
+    networks:
+      - mediastack_proxy
+
+networks:
+  mediastack_proxy:
+    external: true

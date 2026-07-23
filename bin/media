@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly MEDIASTACK_HOME="${MEDIASTACK_HOME:-/opt/mediastack}"
+readonly MEDIASTACK_VERSION="2.0.0"
+
+source "${MEDIASTACK_HOME}/lib/core/constants.sh"
+source "${MEDIASTACK_HOME}/lib/core/output.sh"
+source "${MEDIASTACK_HOME}/lib/core/common.sh"
+source "${MEDIASTACK_HOME}/lib/core/router.sh"
+
+media_main "$@"

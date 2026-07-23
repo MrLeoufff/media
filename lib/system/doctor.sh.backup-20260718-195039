@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+run_doctor() {
+    local errors=0
+    local warnings=0
+    local successes=0
+
+    doctor_ok() {
+        media_success "$*"
+        ((successes+=1))
+    }
+
+    doctor_warning() {
+        media_warning "$*"
+        ((warnings+=1))
+    }
+
+    doctor_error() {
+        media_error "$*"
+        ((errors+=1))
+    }
+
+    media_header
+    echo "Diagnostic MediaStack"
+    media_separator
+
+    docker info >/dev/null 2>&1 &&
+        doctor_ok "Docker répond." ||
+        doctor_error "Docker ne répond pas."
+
+    compose config --quiet >/dev/null 2>&1 &&
+        doctor_ok "Configuration Compose valide." ||
+        doctor_error "Configuration Compose invalide."
+
+    while IFS= read -r service; do
+        if compose ps --status running --services | grep -Fxq "${service}"; then
+            doctor_ok "${service} actif."
+        else
+            doctor_error "${service} inactif."
+        fi
+    done < <(compose config --services)
+
+    command -v ufw >/dev/null 2>&1 &&
+        doctor_ok "UFW installé." ||
+        doctor_warning "UFW absent."
+
+    systemctl is-active --quiet fail2ban &&
+        doctor_ok "Fail2ban actif." ||
+        doctor_warning "Fail2ban inactif."
+
+    systemctl is-active --quiet unattended-upgrades &&
+        doctor_ok "Mises à jour automatiques actives." ||
+        doctor_warning "Mises à jour automatiques inactives."
+
+    echo
+    media_separator
+    printf "Réussis : %s | Avertissements : %s | Erreurs : %s\n" \
+        "${successes}" "${warnings}" "${errors}"
+}
