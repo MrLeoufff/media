@@ -1,4 +1,4 @@
-backup/
+/backup/
 *.backup*
 conf/domain
 conf/tls-mode
