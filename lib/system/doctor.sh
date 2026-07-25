@@ -85,11 +85,9 @@ doctor_check_backups() {
     local age_days
 
     if [[ ! -d "${MEDIASTACK_BACKUP_DIR}" ]]; then
-        doctor_warning "Dossier sauvegarde absent : ${MEDIASTACK_BACKUP_DIR}"
+        doctor_ok "Aucune sauvegarde pour l'instant (dossier absent, normal)."
         return
     fi
-
-    doctor_ok "Dossier sauvegarde présent."
 
     latest="$(
         find "${MEDIASTACK_BACKUP_DIR}" -maxdepth 1 -type f -name '*.tar.gz' \
@@ -100,7 +98,7 @@ doctor_check_backups() {
     )"
 
     if [[ -z "${latest}" ]]; then
-        doctor_warning "Aucune archive de sauvegarde trouvée."
+        doctor_ok "Aucune archive de sauvegarde (normal tant qu'aucune n'a été créée)."
         return
     fi
 
