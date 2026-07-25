@@ -1,5 +1,22 @@
 # Changelog MediaStack
 
+## [2.2.0] — 2026-07-25
+
+### Ajouté
+- Couche ops : sauvegardes avec manifeste + checksum SHA-256
+- `media backup create|list|verify|restore [--dry-run]|prune`
+- Restore fidèle via `rsync --delete` (échecs critiques bloquants)
+- `media status` synthétique (+ `--json`)
+- `media logs <module> [--follow|--since]`
+- Versioning (`VERSION`, commit Git, channel) via `media version`
+- Healthchecks Compose (Jellyfin, Homepage)
+- CI GitHub Actions (`bash -n`, ShellCheck, smoke, lifecycle mock)
+
+### Modifié
+- `--dry-run` de restore réellement non modifiant (pas de `mkdir`)
+- Smoke tests CI compatibles runner non-root (`media_die` isolé)
+- `.gitignore` : ignore `/backup/` à la racine uniquement
+
 ## [2.1.0] — 2026-07-25
 
 ### Ajouté
@@ -8,11 +25,6 @@
 - Génération automatique du Caddyfile (`tls off|auto`)
 - Doctor enrichi (modules, Fail2ban, SSH, connectivité)
 - Tests smoke et lifecycle mock
-- Sauvegardes avec manifeste et checksum SHA-256 (`media backup prune`)
-- `media status` synthétique (+ `--json`)
-- `media logs` avec `--follow` / `--since`
-- Versioning (`VERSION`, commit Git, channel)
-- CI GitHub Actions (bash -n, ShellCheck, tests)
 
 ### Modifié
 - Topologie reverse-proxy documentée (edge amont / backend HTTP)

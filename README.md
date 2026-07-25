@@ -1,8 +1,8 @@
-# MediaStack 2.1
+# MediaStack 2.2
 
-MediaStack automatise l’installation et la configuration d’une stack multimédia Docker.
+MediaStack automatise l’installation, la configuration et l’exploitation d’une stack multimédia Docker.
 
-**Principe zero-touch** : aucune édition manuelle des fichiers Compose ni du Caddyfile. Une commande CLI provisionne dépendances, dossiers, réseau, reverse-proxy, conteneurs et diagnostic.
+**Principe zero-touch** : aucune édition manuelle des fichiers Compose ni du Caddyfile. Une commande CLI provisionne dépendances, dossiers, réseau, reverse-proxy, conteneurs et diagnostic. La v2.2 ajoute la couche ops (backup, status, logs, versioning, CI).
 
 Services intégrés :
 
@@ -22,14 +22,15 @@ apt update && apt install -y git curl ca-certificates python3
 curl -fsSL https://get.docker.com | sh
 systemctl enable --now docker
 
-git clone -b feature/mediastack-2.1 https://github.com/MrLeoufff/media.git /opt/mediastack
+git clone https://github.com/MrLeoufff/media.git /opt/mediastack
 cd /opt/mediastack
+git checkout v2.2.0
 chmod +x bin/media bin/media-service
 find lib modules tests -type f -name '*.sh' -exec chmod +x {} \;
 ln -sf /opt/mediastack/bin/media /usr/local/bin/media
 ```
 
-> La v2.1 est sur la branche `feature/mediastack-2.1`. Après fusion dans `main`, un `git clone` classique suffira.
+> Release courante : tag Git `v2.2.0` (branche `main`).
 
 Installer Jellyfin (et Caddy automatiquement) :
 
@@ -76,7 +77,9 @@ media module list
 
 ```text
 mediastack/
-├── bin/media                 # CLI principale (v2.1.0)
+├── bin/media                 # CLI principale (v2.2.0)
+├── VERSION                   # version semver
+├── CHANGELOG.md
 ├── modules/<nom>/
 │   ├── module.yml            # manifeste (deps, storage, proxy)
 │   ├── compose.yml           # artefact produit (ne pas éditer)
@@ -86,10 +89,12 @@ mediastack/
 │   ├── Caddyfile             # généré automatiquement
 │   ├── domain                # domaine mémorisé
 │   └── tls-mode              # off|auto
-├── lib/                      # bibliothèques Bash
+├── lib/                      # bibliothèques Bash (backup, status, …)
+├── backup/                   # archives locales (ignoré par git)
 ├── tests/
 │   ├── smoke_test.sh
 │   └── lifecycle_mock_test.sh
+├── .github/workflows/ci.yml
 └── media.sh                  # legacy (deprecated)
 ```
 
@@ -195,7 +200,34 @@ media doctor
 media version
 ```
 
-Les sauvegardes produisent `mediastack-backup-YYYY-MM-DD_HHMMSS.tar.gz` + `.sha256`, avec manifeste (version, modules activés, domaine, TLS).
+### Sauvegardes
+
+Les archives sont créées sous `/opt/mediastack/backup/` :
+
+* `mediastack-backup-YYYY-MM-DD_HHMMSS.tar.gz`
+* checksum `.sha256`
+* manifeste (version MediaStack, modules activés, domaine, TLS)
+
+```bash
+media backup create
+media backup list
+media backup verify
+media backup restore --dry-run          # aucune modification FS
+media backup restore                    # rsync --delete (destructif)
+media backup prune --keep 5
+```
+
+`media backup restore --dry-run` vérifie l’archive et simule les `rsync` sans créer de dossiers ni écrire de données.
+
+### Statut et logs
+
+```bash
+media status
+media status --json
+media logs jellyfin --follow
+media logs caddy --since 30m
+media version
+```
 
 ---
 
@@ -263,20 +295,28 @@ Ne pas éditer `conf/Caddyfile` à la main : relancer `media domain configure` o
 
 ## Roadmap
 
-### Phase 2 — Catalogue
+### Suite ops
+
+* `media update` + rollback (sauvegarde de secours avant restore)
+* `media diagnose <module>`
+* pin des images modules + rollback
+* config centralisée (`media config`)
+* ShellCheck strict global
+
+### Catalogue
 
 * `catalog/` (Immich, Nextcloud, Vaultwarden, Paperless, FreshRSS, …)
-* `media module search`
-* `media module validate`
+* `media module search` / `validate`
 
-### Phase 3 — Exploitation avancée
+### Plus loin
 
-* `media module upgrade` + snapshots / rollback
 * API REST + Web UI
+* monitoring / notifications
+* Doctor matériel (Raspberry Pi)
 
 ---
 
 ## Legacy
 
 `media.sh` (v1.6) est conservé pour compatibilité mais **deprecated**.  
-Utiliser exclusivement `bin/media` (v2.1).
+Utiliser exclusivement `bin/media` (v2.2).

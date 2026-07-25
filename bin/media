@@ -6,7 +6,7 @@ readonly MEDIASTACK_HOME="${MEDIASTACK_HOME:-/opt/mediastack}"
 if [[ -f "${MEDIASTACK_HOME}/VERSION" ]]; then
     MEDIASTACK_VERSION="$(tr -d '[:space:]' < "${MEDIASTACK_HOME}/VERSION")"
 else
-    MEDIASTACK_VERSION="2.1.0"
+    MEDIASTACK_VERSION="2.2.0"
 fi
 readonly MEDIASTACK_VERSION
 

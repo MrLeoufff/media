@@ -11,7 +11,7 @@ ln -sfn "${ROOT_DIR}/lib" "${TMP_HOME}/lib"
 
 export MEDIASTACK_HOME="${TMP_HOME}"
 export MEDIASTACK_DATA="${TMP_HOME}/data"
-export MEDIASTACK_VERSION="2.1.0-test"
+export MEDIASTACK_VERSION="2.2.0-test"
 
 # shellcheck source=/dev/null
 source "${ROOT_DIR}/lib/core/constants.sh"

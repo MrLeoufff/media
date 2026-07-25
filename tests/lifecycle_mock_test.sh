@@ -12,7 +12,7 @@ ln -sfn "${ROOT_DIR}/lib" "${TMP_HOME}/lib"
 
 export MEDIASTACK_HOME="${TMP_HOME}"
 export MEDIASTACK_DATA="${TMP_HOME}/data"
-export MEDIASTACK_VERSION="2.1.0-test"
+export MEDIASTACK_VERSION="2.2.0-test"
 : > "${TEST_LOG}"
 
 # shellcheck source=/dev/null
