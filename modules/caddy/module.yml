@@ -1,0 +1,47 @@
+apiVersion: mediastack/v1
+name: caddy
+displayName: Caddy
+version: "1.0.0"
+description: Reverse proxy et terminaison HTTP/HTTPS
+category: infrastructure
+homepage: https://caddyserver.com
+
+container:
+  name: caddy
+  image: caddy:latest
+
+network:
+  name: mediastack_proxy
+
+ports:
+  - 80
+  - 443
+  - 443/udp
+
+health:
+  protocol: http
+  port: 80
+  path: /
+
+dependencies: []
+
+storage:
+  - /opt/mediastack/conf/Caddyfile
+  - /opt/media/caddy/data
+  - /opt/media/caddy/config
+
+proxy:
+  enabled: false
+
+scripts:
+  doctor: doctor.sh
+
+features:
+  doctor: true
+  install: true
+  uninstall: true
+  upgrade: false
+  backup: false
+  restore: false
+
+enabledByDefault: true

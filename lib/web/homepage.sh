@@ -2,50 +2,50 @@
 
 homepage_install() {
     require_root
+
     mkdir -p "${HOMEPAGE_DIR}"
+    service_start homepage
 
-    cat > "${HOMEPAGE_COMPOSE_FILE}" <<'EOF'
-services:
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - /opt/media/homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-EOF
-
-    compose up -d homepage
-    media_success "Homepage installé."
+    media_success "Homepage installé et démarré."
 }
 
 homepage_status() {
-    compose ps homepage
+    service_status homepage
 }
 
 homepage_update() {
     require_root
-    compose pull homepage
-    compose up -d homepage
+
+    service_update homepage
+
     media_success "Homepage mis à jour."
 }
 
 homepage_remove() {
     require_root
-    compose stop homepage || true
-    compose rm -f homepage || true
-    rm -f "${HOMEPAGE_COMPOSE_FILE}"
-    media_success "Homepage supprimé."
+
+    service_remove homepage
+
+    media_success "Homepage arrêté et supprimé."
+    media_warning "La configuration ${HOMEPAGE_DIR} a été conservée."
 }
 
 homepage_command() {
     case "${1:-status}" in
-        install) homepage_install ;;
-        status) homepage_status ;;
-        update) homepage_update ;;
-        remove) homepage_remove ;;
-        *) media_die "Commande homepage inconnue : $1" ;;
+        install)
+            homepage_install
+            ;;
+        status)
+            homepage_status
+            ;;
+        update)
+            homepage_update
+            ;;
+        remove)
+            homepage_remove
+            ;;
+        *)
+            media_die "Commande homepage inconnue : ${1:-}"
+            ;;
     esac
 }

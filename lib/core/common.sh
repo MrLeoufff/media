@@ -19,15 +19,38 @@ check_mediastack_environment() {
     docker compose version >/dev/null 2>&1 ||
         media_die "Docker Compose est indisponible."
 
-    [[ -d "${MEDIASTACK_HOME}/compose" ]] ||
-        media_die "Répertoire Compose introuvable : ${MEDIASTACK_HOME}/compose"
+    local compose_found=false
+    local module
+    local modules_available=false
 
-    compgen -G "${MEDIASTACK_HOME}/compose/*.yml" >/dev/null ||
-        media_die "Aucun fichier Compose trouvé dans ${MEDIASTACK_HOME}/compose"
-}
+    if [[ -d "${MEDIASTACK_MODULES_DIR}" ]]; then
+        for module in "${MEDIASTACK_MODULES_DIR}"/*; do
+            [[ -d "${module}" ]] || continue
+            if [[ -f "${module}/module.yml" && -f "${module}/compose.yml" ]]; then
+                modules_available=true
+                break
+            fi
+        done
+    fi
 
-compose() {
-    media_die "La fonction compose() historique n'est plus disponible. Utilisez le gestionnaire de services."
+    if compgen -G "${MEDIASTACK_COMPOSE_DIR}/*.yml" >/dev/null; then
+        compose_found=true
+    fi
+
+    if [[ -d "${MEDIASTACK_ENABLED_DIR}" ]]; then
+        for module in "${MEDIASTACK_ENABLED_DIR}"/*; do
+            [[ -e "${module}" ]] || continue
+
+            if [[ -f "${module}/compose.yml" ]]; then
+                compose_found=true
+                break
+            fi
+        done
+    fi
+
+    # modules/ suffit pour media module install (zero-touch) même sans enabled/
+    [[ "${compose_found}" == true || "${modules_available}" == true ]] ||
+        media_die "Aucun module MediaStack trouvé dans ${MEDIASTACK_MODULES_DIR}."
 }
 
 confirm_action() {

@@ -1,0 +1,45 @@
+apiVersion: mediastack/v1
+name: homepage
+displayName: Homepage
+version: "1.0.0"
+description: Tableau de bord MediaStack
+category: dashboard
+homepage: https://gethomepage.dev
+
+container:
+  name: homepage
+  image: ghcr.io/gethomepage/homepage:latest
+
+network:
+  name: mediastack_proxy
+
+ports:
+  - 3000
+
+health:
+  protocol: http
+  port: 3000
+  path: /
+
+dependencies:
+  - docker
+  - caddy
+
+storage:
+  - /opt/media/homepage
+
+proxy:
+  enabled: false
+
+scripts:
+  doctor: doctor.sh
+
+features:
+  doctor: true
+  install: true
+  uninstall: true
+  upgrade: false
+  backup: false
+  restore: false
+
+enabledByDefault: true

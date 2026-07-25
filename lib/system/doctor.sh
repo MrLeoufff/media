@@ -1,203 +1,143 @@
 #!/usr/bin/env bash
 
+source "${MEDIASTACK_HOME}/lib/system/doctor_helpers.sh"
+
+if ! declare -F module_enabled_names >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/manager.sh"
+fi
+
+if ! declare -F module_metadata_list >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/metadata.sh"
+fi
+
+if ! declare -F domain_get >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/web/proxy.sh"
+fi
+
+doctor_check_docker_versions() {
+    local docker_version
+    local compose_version
+    local docker_major
+
+    docker_version="$(docker --version 2>/dev/null || true)"
+    compose_version="$(docker compose version 2>/dev/null || true)"
+
+    if [[ -n "${docker_version}" ]]; then
+        doctor_ok "Docker : ${docker_version}"
+        docker_major="$(
+            sed -n 's/.*version \([0-9]\+\).*/\1/p' <<< "${docker_version}"
+        )"
+        if [[ -n "${docker_major}" && "${docker_major}" -lt 24 ]]; then
+            doctor_warning "Docker < 24 détecté ; MediaStack recommande Docker 24+."
+        fi
+    else
+        doctor_error "Impossible de lire la version Docker."
+    fi
+
+    if [[ -n "${compose_version}" ]]; then
+        doctor_ok "Compose : ${compose_version}"
+    else
+        doctor_error "Impossible de lire la version Docker Compose."
+    fi
+}
+
+doctor_check_fail2ban() {
+    local ignoreip_line
+    local jail_file="/etc/fail2ban/jail.d/mediastack.conf"
+
+    if ! command -v fail2ban-client >/dev/null 2>&1; then
+        doctor_warning "Fail2ban absent."
+        return
+    fi
+
+    if systemctl is-active --quiet fail2ban 2>/dev/null; then
+        doctor_ok "Fail2ban actif."
+    else
+        doctor_warning "Fail2ban inactif."
+        return
+    fi
+
+    if fail2ban-client status sshd >/dev/null 2>&1; then
+        doctor_ok "Jail sshd Fail2ban active."
+    else
+        doctor_warning "Jail sshd Fail2ban indisponible."
+    fi
+
+    if [[ -f "${jail_file}" ]]; then
+        ignoreip_line="$(
+            grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "${jail_file}" || true
+        )"
+        if [[ -n "${ignoreip_line}" ]]; then
+            doctor_ok "ignoreip configuré (${ignoreip_line#*= })."
+            if grep -Eq '0\.0\.0\.0/0|::/0' <<< "${ignoreip_line}"; then
+                doctor_warning "ignoreip trop permissif (0.0.0.0/0)."
+            fi
+        else
+            doctor_warning "ignoreip absent de ${jail_file}."
+        fi
+    else
+        doctor_warning "Fichier jail MediaStack absent : ${jail_file}"
+    fi
+}
+
+doctor_check_backups() {
+    local latest
+    local age_days
+
+    if [[ ! -d "${MEDIASTACK_BACKUP_DIR}" ]]; then
+        doctor_ok "Aucune sauvegarde pour l'instant (dossier absent, normal)."
+        return
+    fi
+
+    latest="$(
+        find "${MEDIASTACK_BACKUP_DIR}" -maxdepth 1 -type f -name '*.tar.gz' \
+            -printf '%T@ %p\n' 2>/dev/null |
+            sort -nr |
+            head -n1 |
+            awk '{print $2}'
+    )"
+
+    if [[ -z "${latest}" ]]; then
+        doctor_ok "Aucune archive de sauvegarde (normal tant qu'aucune n'a été créée)."
+        return
+    fi
+
+    age_days="$(( ( $(date +%s) - $(stat -c %Y "${latest}") ) / 86400 ))"
+    doctor_ok "Dernière sauvegarde : $(basename "${latest}") (${age_days} j)."
+
+    if (( age_days > 14 )); then
+        doctor_warning "Dernière sauvegarde âgée de plus de 14 jours."
+    fi
+}
+
+doctor_check_proxy_coherence() {
+    if [[ ! -f "${MEDIASTACK_CADDYFILE}" ]]; then
+        doctor_warning "Caddyfile absent."
+        return
+    fi
+
+    doctor_ok "Caddyfile présent."
+
+    if grep -q 'Généré automatiquement par MediaStack\|Généré par MediaStack' \
+        "${MEDIASTACK_CADDYFILE}" 2>/dev/null; then
+        doctor_ok "Caddyfile géré par MediaStack."
+    else
+        doctor_warning "Caddyfile non généré par MediaStack (édition manuelle possible)."
+    fi
+
+    if [[ -n "$(domain_get)" ]]; then
+        doctor_ok "Domaine mémorisé : $(domain_get)"
+    else
+        doctor_warning "Aucun domaine mémorisé (mode LAN)."
+    fi
+
+    doctor_ok "Mode TLS local : $(tls_mode_get)"
+}
+
 run_doctor() {
     local errors=0
     local warnings=0
     local checks=0
-
-    doctor_section() {
-        echo
-        echo "[$1]"
-        printf '%*s\n' 60 '' | tr ' ' '-'
-    }
-
-    doctor_ok() {
-        checks=$((checks + 1))
-        echo "[OK] $1"
-    }
-
-    doctor_warning() {
-        checks=$((checks + 1))
-        warnings=$((warnings + 1))
-        echo "[WARN] $1"
-    }
-
-    doctor_error() {
-        checks=$((checks + 1))
-        errors=$((errors + 1))
-        echo "[ERROR] $1"
-    }
-
-    doctor_title() {
-        echo
-        printf '%*s\n' 60 '' | tr ' ' '-'
-        printf '%25s\n' "MediaStack Doctor"
-        printf '%*s\n' 60 '' | tr ' ' '-'
-    }
-
-    check_command() {
-        local command_name="$1"
-        local label="$2"
-
-        if command -v "$command_name" >/dev/null 2>&1; then
-            doctor_ok "${label} installé."
-        else
-            doctor_error "${label} absent."
-        fi
-    }
-
-    check_container() {
-        local container="$1"
-
-        if ! docker inspect "$container" >/dev/null 2>&1; then
-            doctor_error "Conteneur ${container} introuvable."
-            return
-        fi
-
-        local state
-        state="$(docker inspect \
-            --format '{{.State.Status}}' \
-            "$container" 2>/dev/null)"
-
-        if [[ "$state" == "running" ]]; then
-            doctor_ok "Conteneur ${container} actif."
-        else
-            doctor_error "Conteneur ${container} dans l'état : ${state}."
-        fi
-    }
-
-    check_container_health() {
-        local container="$1"
-        local health
-
-        health="$(docker inspect \
-            --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
-            "$container" 2>/dev/null || true)"
-
-        case "$health" in
-            healthy)
-                doctor_ok "Healthcheck ${container} valide."
-                ;;
-            unhealthy)
-                doctor_error "Healthcheck ${container} en échec."
-                ;;
-            starting)
-                doctor_warning "Healthcheck ${container} en cours."
-                ;;
-            none|"")
-                doctor_warning "Aucun healthcheck défini pour ${container}."
-                ;;
-        esac
-    }
-
-    check_compose_file() {
-        local compose_file="$1"
-        local service_name
-
-        service_name="$(basename "$compose_file" .yml)"
-
-        if docker compose \
-            -f "$compose_file" \
-            config --quiet >/dev/null 2>&1; then
-            doctor_ok "Compose ${service_name} valide."
-        else
-            doctor_error "Compose ${service_name} invalide : ${compose_file}"
-        fi
-    }
-
-    check_network_membership() {
-        local container="$1"
-        local network="$2"
-
-        if ! docker inspect "$container" >/dev/null 2>&1; then
-            return
-        fi
-
-        if docker inspect \
-            --format '{{json .NetworkSettings.Networks}}' \
-            "$container" 2>/dev/null |
-            grep -q "\"${network}\""; then
-            doctor_ok "${container} connecté à ${network}."
-        else
-            doctor_error "${container} absent du réseau ${network}."
-        fi
-    }
-
-    check_local_http() {
-        local name="$1"
-        local url="$2"
-        local host_header="${3:-}"
-        local status
-
-        if [[ -n "$host_header" ]]; then
-            status="$(curl \
-                --silent \
-                --output /dev/null \
-                --write-out '%{http_code}' \
-                --max-time 10 \
-                --header "Host: ${host_header}" \
-                "$url" 2>/dev/null || true)"
-        else
-            status="$(curl \
-                --silent \
-                --output /dev/null \
-                --write-out '%{http_code}' \
-                --max-time 10 \
-                "$url" 2>/dev/null || true)"
-        fi
-
-        if [[ "$status" =~ ^(200|204|301|302|307|308)$ ]]; then
-            doctor_ok "${name} répond en HTTP (${status})."
-        elif [[ "$status" == "000" || -z "$status" ]]; then
-            doctor_error "${name} ne répond pas."
-        else
-            doctor_warning "${name} répond avec le code HTTP ${status}."
-        fi
-    }
-
-    check_disk() {
-        local mount_point="$1"
-        local usage
-
-        usage="$(df -P "$mount_point" 2>/dev/null |
-            awk 'NR == 2 {gsub("%", "", $5); print $5}')"
-
-        if [[ -z "$usage" ]]; then
-            doctor_warning "Impossible de contrôler l'espace disque de ${mount_point}."
-        elif (( usage >= 95 )); then
-            doctor_error "Disque ${mount_point} utilisé à ${usage}%."
-        elif (( usage >= 85 )); then
-            doctor_warning "Disque ${mount_point} utilisé à ${usage}%."
-        else
-            doctor_ok "Espace disque ${mount_point} correct (${usage}% utilisé)."
-        fi
-    }
-
-    check_directory() {
-        local directory="$1"
-
-        if [[ ! -d "$directory" ]]; then
-            doctor_error "Dossier absent : ${directory}"
-        elif [[ ! -r "$directory" ]]; then
-            doctor_error "Dossier non lisible : ${directory}"
-        elif [[ ! -w "$directory" ]]; then
-            doctor_warning "Dossier non inscriptible : ${directory}"
-        else
-            doctor_ok "Dossier accessible : ${directory}"
-        fi
-    }
-
-    check_port() {
-        local port="$1"
-        local protocol="${2:-tcp}"
-
-        if ss -lnH 2>/dev/null |
-            grep -qE "[:.]${port}[[:space:]]"; then
-            doctor_ok "Port ${port}/${protocol} en écoute."
-        else
-            doctor_warning "Port ${port}/${protocol} non détecté."
-        fi
-    }
 
     doctor_title
 
@@ -206,6 +146,7 @@ run_doctor() {
     check_command docker "Docker"
     check_command curl "Curl"
     check_command ss "IpRoute2"
+    check_command python3 "Python 3"
 
     if docker info >/dev/null 2>&1; then
         doctor_ok "Docker répond."
@@ -223,45 +164,46 @@ run_doctor() {
         doctor_error "Docker Compose ne répond pas."
     fi
 
+    doctor_check_docker_versions
+
     doctor_section "Configuration"
 
-    if [[ -d "${MEDIASTACK_HOME}/compose" ]]; then
-        doctor_ok "Dossier Compose présent."
+    if [[ -d "${MEDIASTACK_MODULES_DIR}" ]]; then
+        doctor_ok "Dossier modules présent."
     else
-        doctor_error "Dossier Compose absent : ${MEDIASTACK_HOME}/compose"
+        doctor_error "Dossier modules absent : ${MEDIASTACK_MODULES_DIR}"
+    fi
+
+    if [[ -d "${MEDIASTACK_ENABLED_DIR}" ]]; then
+        doctor_ok "Dossier enabled présent."
+    else
+        doctor_error "Dossier enabled absent : ${MEDIASTACK_ENABLED_DIR}"
     fi
 
     local compose_files=()
     local compose_file
+    local configured_service
+    local enabled_count=0
 
-    shopt -s nullglob
-    compose_files=("${MEDIASTACK_HOME}/compose/"*.yml)
-    shopt -u nullglob
+    while IFS= read -r configured_service; do
+        [[ -n "${configured_service}" ]] || continue
+        enabled_count=$((enabled_count + 1))
+        compose_files+=(
+            "$(service_compose_file "${configured_service}")"
+        )
+    done < <(service_names)
 
     if (( ${#compose_files[@]} == 0 )); then
-        doctor_error "Aucun fichier Compose trouvé."
+        doctor_warning "Aucun module activé (utilisez media module install)."
     else
-        doctor_ok "${#compose_files[@]} fichier(s) Compose trouvé(s)."
+        doctor_ok "${enabled_count} module(s) activé(s)."
 
         for compose_file in "${compose_files[@]}"; do
-            check_compose_file "$compose_file"
+            check_compose_file "${compose_file}"
         done
     fi
 
-    if [[ -f "${MEDIASTACK_HOME}/conf/Caddyfile" ]]; then
-        doctor_ok "Caddyfile présent."
-
-        if docker exec caddy \
-            caddy validate \
-            --config /etc/caddy/Caddyfile \
-            --adapter caddyfile >/dev/null 2>&1; then
-            doctor_ok "Configuration Caddy valide."
-        else
-            doctor_error "Configuration Caddy invalide."
-        fi
-    else
-        doctor_error "Caddyfile absent."
-    fi
+    doctor_check_proxy_coherence
 
     doctor_section "Réseau Docker"
 
@@ -273,42 +215,82 @@ run_doctor() {
 
     doctor_section "Services"
 
-    local expected_services=(
-        caddy
-        homepage
-        jellyfin
-        portainer
-    )
-
+    local expected_services=()
     local service
+    local module_doctor_script
+
+    mapfile -t expected_services < <(service_names)
 
     for service in "${expected_services[@]}"; do
-        check_container "$service"
+        check_container "${service}"
 
-        if docker inspect "$service" >/dev/null 2>&1; then
-            check_container_health "$service"
-            check_network_membership "$service" mediastack_proxy
+        if ! docker inspect "${service}" >/dev/null 2>&1; then
+            continue
+        fi
+
+        check_network_membership \
+            "${service}" \
+            mediastack_proxy
+
+        if module_is_enabled "${service}" &&
+            module_has_doctor "${service}"; then
+
+            module_doctor_script="$(
+                module_doctor_file "${service}"
+            )"
+
+            unset -f module_doctor 2>/dev/null || true
+
+            # shellcheck source=/dev/null
+            source "${module_doctor_script}"
+
+            if declare -F module_doctor >/dev/null 2>&1; then
+                module_doctor
+            else
+                doctor_warning \
+                    "Doctor du module ${service} invalide : fonction module_doctor absente."
+            fi
+
+            unset -f module_doctor 2>/dev/null || true
+        else
+            check_container_health "${service}"
         fi
     done
 
     doctor_section "Connectivité"
 
-    check_local_http \
-        "Caddy local pour media.dwg-dev.fr" \
-        "http://127.0.0.1" \
-        "media.dwg-dev.fr"
-
-    if docker exec caddy sh -c \
-        'wget -q -O /dev/null -T 10 http://jellyfin:8096/System/Info/Public' \
-        >/dev/null 2>&1; then
-        doctor_ok "Caddy peut joindre Jellyfin."
+    if getent hosts github.com >/dev/null 2>&1; then
+        doctor_ok "Résolution DNS github.com OK."
     else
-    	doctor_error "Caddy ne peut pas joindre Jellyfin."
+        doctor_warning "Impossible de résoudre github.com."
     fi
 
-    check_local_http \
-        "Accès public Jellyfin" \
-        "https://media.dwg-dev.fr"
+    # /v2/ sans auth renvoie souvent 401 : le registry est joignable.
+    local docker_hub_status
+    docker_hub_status="$(
+        curl -sS -o /dev/null -w '%{http_code}' \
+            --connect-timeout 5 \
+            --max-time 10 \
+            https://registry-1.docker.io/v2/ 2>/dev/null || true
+    )"
+
+    case "${docker_hub_status}" in
+        200|401)
+            doctor_ok "Accès au registry Docker Hub OK (${docker_hub_status})."
+            ;;
+        *)
+            doctor_warning \
+                "Registry Docker Hub injoignable (code=${docker_hub_status:-000})."
+            ;;
+    esac
+
+    if [[ -n "$(domain_get)" ]]; then
+        if getent hosts "$(domain_get)" >/dev/null 2>&1; then
+            doctor_ok "Résolution DNS du domaine MediaStack OK."
+        else
+            doctor_warning "Domaine MediaStack non résolu : $(domain_get)"
+        fi
+    fi
 
     doctor_section "Ports"
 
@@ -317,14 +299,29 @@ run_doctor() {
 
     doctor_section "Stockage"
 
-    check_directory /opt/mediastack
-    check_directory /opt/mediastack/compose
-    check_directory /opt/mediastack/conf
-    check_directory /opt/media
-    check_directory /opt/media/jellyfin/config
+    check_directory "${MEDIASTACK_HOME}"
+    check_directory "${MEDIASTACK_MODULES_DIR}"
+    check_directory "${MEDIASTACK_ENABLED_DIR}"
+    check_directory "${MEDIASTACK_CONFIG_DIR}"
+    check_directory "${MEDIASTACK_DATA}"
+
+    local storage_path
+    local enabled_module
+
+    while IFS= read -r enabled_module; do
+        [[ -n "${enabled_module}" ]] || continue
+        while IFS= read -r storage_path; do
+            [[ -n "${storage_path}" ]] || continue
+            [[ "${storage_path}" == *.sock ]] && continue
+            [[ "${storage_path}" == */Caddyfile ]] && continue
+            check_directory "${storage_path}"
+        done < <(module_metadata_list "${enabled_module}" storage 2>/dev/null || true)
+    done < <(module_enabled_names)
 
     check_disk /
-    check_disk /opt/media
+    check_disk "${MEDIASTACK_DATA}"
+
+    doctor_check_backups
 
     doctor_section "Sécurité"
 
@@ -339,11 +336,7 @@ run_doctor() {
         doctor_warning "UFW absent."
     fi
 
-    if systemctl is-active --quiet fail2ban 2>/dev/null; then
-        doctor_ok "Fail2ban actif."
-    else
-        doctor_warning "Fail2ban inactif."
-    fi
+    doctor_check_fail2ban
 
     if systemctl is-active --quiet unattended-upgrades 2>/dev/null; then
         doctor_ok "Mises à jour automatiques actives."
@@ -364,12 +357,28 @@ run_doctor() {
         doctor_warning "Authentification SSH par mot de passe potentiellement active."
     fi
 
-    if grep -i '^permitrootlogin no$' \
-        <<< "$sshd_configuration" >/dev/null; then
-        doctor_ok "Connexion SSH root désactivée."
-    else
-        doctor_warning "Connexion SSH root non totalement désactivée."
-    fi
+    local permit_root_login
+    permit_root_login="$(
+        awk 'tolower($1)=="permitrootlogin" {print tolower($2); exit}' \
+            <<< "${sshd_configuration}"
+    )"
+
+    case "${permit_root_login}" in
+        no)
+            doctor_ok "Connexion SSH root désactivée."
+            ;;
+        prohibit-password|without-password)
+            doctor_ok "Connexion SSH root par clé uniquement (prohibit-password)."
+            ;;
+        yes|"")
+            doctor_warning \
+                "Connexion SSH root autorisée par mot de passe (${permit_root_login:-inconnue})."
+            ;;
+        *)
+            doctor_warning \
+                "Paramètre PermitRootLogin inattendu : ${permit_root_login}."
+            ;;
+    esac
 
     doctor_section "Résumé"
 

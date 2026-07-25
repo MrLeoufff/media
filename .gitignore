@@ -1,2 +1,6 @@
 backup/
 *.backup*
+conf/domain
+conf/tls-mode
+conf/*.bak
+*.mediastack.*.bak

@@ -12,6 +12,7 @@ bantime = 1h
 findtime = 10m
 maxretry = 5
 backend = systemd
+ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
 
 [sshd]
 enabled = true

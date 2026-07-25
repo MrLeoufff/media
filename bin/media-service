@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 
-set -o pipefail
+readonly MEDIASTACK_HOME="${MEDIASTACK_HOME:-/opt/mediastack}"
 
-MEDIASTACK_ROOT="/opt/mediastack"
-
-# shellcheck source=/dev/null
-source "${MEDIASTACK_ROOT}/lib/services/manager.sh"
+source "${MEDIASTACK_HOME}/lib/core/constants.sh"
+source "${MEDIASTACK_HOME}/lib/services/manager.sh"
 
 show_help() {
     cat <<'HELP'
@@ -18,67 +17,52 @@ Utilisation :
   media-service logs <service>
   media-service update <service|all>
   media-service remove <service>
-
-Services disponibles :
-  caddy
-  homepage
-  jellyfin
-  portainer
 HELP
 }
 
 command_name="${1:-help}"
 service_name="${2:-}"
 
-case "$command_name" in
+case "${command_name}" in
     list)
         service_list
         ;;
-
     status)
-        service_status "$service_name"
+        service_status "${service_name}"
         ;;
-
     start)
-        if [[ "$service_name" == "all" ]]; then
+        if [[ "${service_name}" == "all" ]]; then
             service_start_all
         else
-            service_start "$service_name"
+            service_start "${service_name}"
         fi
         ;;
-
     stop)
-        if [[ "$service_name" == "all" ]]; then
+        if [[ "${service_name}" == "all" ]]; then
             service_stop_all
         else
-            service_stop "$service_name"
+            service_stop "${service_name}"
         fi
         ;;
-
     restart)
-        service_restart "$service_name"
+        service_restart "${service_name}"
         ;;
-
     logs)
-        service_logs "$service_name"
+        service_logs "${service_name}"
         ;;
-
     update)
-        if [[ "$service_name" == "all" ]]; then
+        if [[ "${service_name}" == "all" ]]; then
             service_update_all
         else
-            service_update "$service_name"
+            service_update "${service_name}"
         fi
         ;;
-
     remove)
-        service_remove "$service_name"
+        service_remove "${service_name}"
         ;;
-
     help|-h|--help)
         show_help
         ;;
-
     *)
         service_error "Commande inconnue : ${command_name}"
         echo

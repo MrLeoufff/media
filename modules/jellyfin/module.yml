@@ -1,0 +1,48 @@
+apiVersion: mediastack/v1
+name: jellyfin
+displayName: Jellyfin
+version: "1.0.0"
+description: Serveur multimédia
+category: multimedia
+homepage: https://jellyfin.org
+
+container:
+  name: jellyfin
+  image: jellyfin/jellyfin:latest
+
+network:
+  name: mediastack_proxy
+
+ports:
+  - 8096
+
+health:
+  protocol: http
+  port: 8096
+  path: /System/Info/Public
+
+dependencies:
+  - caddy
+
+storage:
+  - /opt/media/jellyfin/config
+  - /opt/media/jellyfin/cache
+  - /opt/media
+
+proxy:
+  enabled: true
+  target: jellyfin:8096
+  path: /
+
+scripts:
+  doctor: doctor.sh
+
+features:
+  doctor: true
+  install: true
+  uninstall: true
+  upgrade: false
+  backup: false
+  restore: false
+
+enabledByDefault: true
