@@ -1,0 +1,22 @@
+name: caddy
+version: 1.0.0
+description: Reverse proxy et terminaison HTTP/HTTPS
+container: caddy
+category: infrastructure
+
+ports:
+  - 80
+  - 443
+  - 443/udp
+
+health:
+  protocol: http
+  port: 80
+  path: /
+
+dependencies: []
+
+storage:
+  - /opt/mediastack/conf/Caddyfile
+  - /opt/media/caddy/data
+  - /opt/media/caddy/config

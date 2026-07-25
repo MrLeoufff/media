@@ -256,21 +256,6 @@ run_doctor() {
         done
     fi
 
-    if [[ -f "${MEDIASTACK_HOME}/conf/Caddyfile" ]]; then
-        doctor_ok "Caddyfile présent."
-
-        if docker exec caddy \
-            caddy validate \
-            --config /etc/caddy/Caddyfile \
-            --adapter caddyfile >/dev/null 2>&1; then
-            doctor_ok "Configuration Caddy valide."
-        else
-            doctor_error "Configuration Caddy invalide."
-        fi
-    else
-        doctor_error "Caddyfile absent."
-    fi
-
     doctor_section "Réseau Docker"
 
     if docker network inspect mediastack_proxy >/dev/null 2>&1; then
@@ -321,11 +306,6 @@ run_doctor() {
     done
 
     doctor_section "Connectivité"
-
-    check_local_http \
-        "Caddy local pour media.dwg-dev.fr" \
-        "http://127.0.0.1" \
-        "media.dwg-dev.fr"
 
 
     doctor_section "Ports"

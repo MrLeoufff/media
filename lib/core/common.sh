@@ -19,11 +19,26 @@ check_mediastack_environment() {
     docker compose version >/dev/null 2>&1 ||
         media_die "Docker Compose est indisponible."
 
-    [[ -d "${MEDIASTACK_HOME}/compose" ]] ||
-        media_die "Répertoire Compose introuvable : ${MEDIASTACK_HOME}/compose"
+    local compose_found=false
+    local module
 
-    compgen -G "${MEDIASTACK_HOME}/compose/*.yml" >/dev/null ||
-        media_die "Aucun fichier Compose trouvé dans ${MEDIASTACK_HOME}/compose"
+    if compgen -G "${MEDIASTACK_COMPOSE_DIR}/*.yml" >/dev/null; then
+        compose_found=true
+    fi
+
+    if [[ -d "${MEDIASTACK_ENABLED_DIR}" ]]; then
+        for module in "${MEDIASTACK_ENABLED_DIR}"/*; do
+            [[ -e "${module}" ]] || continue
+
+            if [[ -f "${module}/compose.yml" ]]; then
+                compose_found=true
+                break
+            fi
+        done
+    fi
+
+    [[ "${compose_found}" == true ]] ||
+        media_die "Aucun service Compose configuré ou module activé."
 }
 
 confirm_action() {
