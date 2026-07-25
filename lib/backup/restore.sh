@@ -52,7 +52,7 @@ verify_backup() {
     [[ -z "${unsafe_path}" ]] ||
         media_die "Chemin dangereux détecté : ${unsafe_path}"
 
-    if tar -tzf "${archive}" | grep -qE '^\./manifest\.json$|^manifest\.json$'; then
+    if tar -tzf "${archive}" | grep -q 'manifest.json'; then
         media_success "Manifeste présent."
     else
         media_warning "Manifeste absent (archive legacy)."
