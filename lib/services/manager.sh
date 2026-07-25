@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-MEDIASTACK_ROOT="${MEDIASTACK_ROOT:-/opt/mediastack}"
-MEDIASTACK_COMPOSE_DIR="${MEDIASTACK_ROOT}/compose"
-
 service_error() {
     echo "[ERREUR] $*" >&2
 }

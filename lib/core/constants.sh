@@ -1,21 +1,52 @@
 #!/usr/bin/env bash
 
-readonly STACK_DIR="${MEDIASTACK_HOME:-/opt/mediastack}"
-readonly COMPOSE_FILE="${STACK_DIR}/docker-compose.yml"
-readonly HOMEPAGE_COMPOSE_FILE="${STACK_DIR}/docker-compose.homepage.yml"
+# ==============================================================================
+# MediaStack - Constantes globales
+# ==============================================================================
 
-readonly DATA_DIR="/opt/media"
-readonly MEDIA_DIR="${DATA_DIR}/media"
-readonly FILMS_DIR="${MEDIA_DIR}/films"
-readonly SERIES_DIR="${MEDIA_DIR}/series"
-readonly MUSIC_DIR="${MEDIA_DIR}/musique"
+# Valeurs par défaut.
+# L'opérateur := n'effectue aucune réaffectation si la variable existe déjà.
+: "${MEDIASTACK_HOME:=/opt/mediastack}"
+: "${MEDIASTACK_DATA:=/opt/media}"
 
-readonly JELLYFIN_DIR="${DATA_DIR}/jellyfin"
-readonly PORTAINER_DIR="${DATA_DIR}/portainer"
-readonly CADDY_DIR="${DATA_DIR}/caddy"
-readonly HOMEPAGE_DIR="${DATA_DIR}/homepage"
+readonly MEDIASTACK_HOME
+readonly MEDIASTACK_DATA
 
-readonly BACKUP_DIR="${STACK_DIR}/backup"
-readonly RESTORE_DIR="${STACK_DIR}/restore"
-readonly CONFIG_DIR="${STACK_DIR}/config"
-readonly CADDYFILE="${CONFIG_DIR}/Caddyfile"
+# Répertoires du projet
+readonly MEDIASTACK_COMPOSE_DIR="${MEDIASTACK_HOME}/compose"
+readonly MEDIASTACK_CONFIG_DIR="${MEDIASTACK_HOME}/conf"
+readonly MEDIASTACK_BACKUP_DIR="${MEDIASTACK_HOME}/backup"
+readonly MEDIASTACK_RESTORE_DIR="${MEDIASTACK_HOME}/restore"
+
+# Configuration générale
+readonly MEDIASTACK_CADDYFILE="${MEDIASTACK_CONFIG_DIR}/Caddyfile"
+
+# Bibliothèques multimédias
+readonly FILMS_DIR="${MEDIASTACK_DATA}/films"
+readonly SERIES_DIR="${MEDIASTACK_DATA}/series"
+readonly MUSIC_DIR="${MEDIASTACK_DATA}/musique"
+readonly ANIMES_DIR="${MEDIASTACK_DATA}/animes"
+readonly CONCERTS_DIR="${MEDIASTACK_DATA}/concerts"
+readonly DOCUMENTARIES_DIR="${MEDIASTACK_DATA}/documentaires"
+
+# Données applicatives
+readonly JELLYFIN_DIR="${MEDIASTACK_DATA}/jellyfin"
+readonly PORTAINER_DIR="${MEDIASTACK_DATA}/portainer"
+readonly CADDY_DIR="${MEDIASTACK_DATA}/caddy"
+readonly HOMEPAGE_DIR="${MEDIASTACK_DATA}/homepage"
+
+# ==============================================================================
+# Alias temporaires de compatibilité
+# ==============================================================================
+
+readonly STACK_DIR="${MEDIASTACK_HOME}"
+readonly DATA_DIR="${MEDIASTACK_DATA}"
+readonly MEDIA_DIR="${MEDIASTACK_DATA}"
+
+readonly COMPOSE_DIR="${MEDIASTACK_COMPOSE_DIR}"
+readonly CONFIG_DIR="${MEDIASTACK_CONFIG_DIR}"
+readonly BACKUP_DIR="${MEDIASTACK_BACKUP_DIR}"
+readonly RESTORE_DIR="${MEDIASTACK_RESTORE_DIR}"
+readonly CADDYFILE="${MEDIASTACK_CADDYFILE}"
+
+readonly HOMEPAGE_COMPOSE_FILE="${MEDIASTACK_COMPOSE_DIR}/homepage.yml"
