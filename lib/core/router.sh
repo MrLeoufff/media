@@ -45,6 +45,8 @@ Gestion des modules
   media module info <module>
   media module enable <module>
   media module disable <module>
+  media module install <module> [--domain <fqdn>]
+  media module uninstall <module> [--keep-data|--purge] [--yes]
   media module doctor <module>
 
 Sécurité

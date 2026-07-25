@@ -21,6 +21,17 @@ check_mediastack_environment() {
 
     local compose_found=false
     local module
+    local modules_available=false
+
+    if [[ -d "${MEDIASTACK_MODULES_DIR}" ]]; then
+        for module in "${MEDIASTACK_MODULES_DIR}"/*; do
+            [[ -d "${module}" ]] || continue
+            if [[ -f "${module}/module.yml" && -f "${module}/compose.yml" ]]; then
+                modules_available=true
+                break
+            fi
+        done
+    fi
 
     if compgen -G "${MEDIASTACK_COMPOSE_DIR}/*.yml" >/dev/null; then
         compose_found=true
@@ -37,8 +48,9 @@ check_mediastack_environment() {
         done
     fi
 
-    [[ "${compose_found}" == true ]] ||
-        media_die "Aucun service Compose configuré ou module activé."
+    # modules/ suffit pour media module install (zero-touch) même sans enabled/
+    [[ "${compose_found}" == true || "${modules_available}" == true ]] ||
+        media_die "Aucun module MediaStack trouvé dans ${MEDIASTACK_MODULES_DIR}."
 }
 
 confirm_action() {

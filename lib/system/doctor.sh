@@ -2,6 +2,138 @@
 
 source "${MEDIASTACK_HOME}/lib/system/doctor_helpers.sh"
 
+if ! declare -F module_enabled_names >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/manager.sh"
+fi
+
+if ! declare -F module_metadata_list >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/metadata.sh"
+fi
+
+if ! declare -F domain_get >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/web/proxy.sh"
+fi
+
+doctor_check_docker_versions() {
+    local docker_version
+    local compose_version
+    local docker_major
+
+    docker_version="$(docker --version 2>/dev/null || true)"
+    compose_version="$(docker compose version 2>/dev/null || true)"
+
+    if [[ -n "${docker_version}" ]]; then
+        doctor_ok "Docker : ${docker_version}"
+        docker_major="$(
+            sed -n 's/.*version \([0-9]\+\).*/\1/p' <<< "${docker_version}"
+        )"
+        if [[ -n "${docker_major}" && "${docker_major}" -lt 24 ]]; then
+            doctor_warning "Docker < 24 détecté ; MediaStack recommande Docker 24+."
+        fi
+    else
+        doctor_error "Impossible de lire la version Docker."
+    fi
+
+    if [[ -n "${compose_version}" ]]; then
+        doctor_ok "Compose : ${compose_version}"
+    else
+        doctor_error "Impossible de lire la version Docker Compose."
+    fi
+}
+
+doctor_check_fail2ban() {
+    local ignoreip_line
+    local jail_file="/etc/fail2ban/jail.d/mediastack.conf"
+
+    if ! command -v fail2ban-client >/dev/null 2>&1; then
+        doctor_warning "Fail2ban absent."
+        return
+    fi
+
+    if systemctl is-active --quiet fail2ban 2>/dev/null; then
+        doctor_ok "Fail2ban actif."
+    else
+        doctor_warning "Fail2ban inactif."
+        return
+    fi
+
+    if fail2ban-client status sshd >/dev/null 2>&1; then
+        doctor_ok "Jail sshd Fail2ban active."
+    else
+        doctor_warning "Jail sshd Fail2ban indisponible."
+    fi
+
+    if [[ -f "${jail_file}" ]]; then
+        ignoreip_line="$(
+            grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "${jail_file}" || true
+        )"
+        if [[ -n "${ignoreip_line}" ]]; then
+            doctor_ok "ignoreip configuré (${ignoreip_line#*= })."
+            if grep -Eq '0\.0\.0\.0/0|::/0' <<< "${ignoreip_line}"; then
+                doctor_warning "ignoreip trop permissif (0.0.0.0/0)."
+            fi
+        else
+            doctor_warning "ignoreip absent de ${jail_file}."
+        fi
+    else
+        doctor_warning "Fichier jail MediaStack absent : ${jail_file}"
+    fi
+}
+
+doctor_check_backups() {
+    local latest
+    local age_days
+
+    if [[ ! -d "${MEDIASTACK_BACKUP_DIR}" ]]; then
+        doctor_warning "Dossier sauvegarde absent : ${MEDIASTACK_BACKUP_DIR}"
+        return
+    fi
+
+    doctor_ok "Dossier sauvegarde présent."
+
+    latest="$(
+        find "${MEDIASTACK_BACKUP_DIR}" -maxdepth 1 -type f -name '*.tar.gz' \
+            -printf '%T@ %p\n' 2>/dev/null |
+            sort -nr |
+            head -n1 |
+            awk '{print $2}'
+    )"
+
+    if [[ -z "${latest}" ]]; then
+        doctor_warning "Aucune archive de sauvegarde trouvée."
+        return
+    fi
+
+    age_days="$(( ( $(date +%s) - $(stat -c %Y "${latest}") ) / 86400 ))"
+    doctor_ok "Dernière sauvegarde : $(basename "${latest}") (${age_days} j)."
+
+    if (( age_days > 14 )); then
+        doctor_warning "Dernière sauvegarde âgée de plus de 14 jours."
+    fi
+}
+
+doctor_check_proxy_coherence() {
+    if [[ ! -f "${MEDIASTACK_CADDYFILE}" ]]; then
+        doctor_warning "Caddyfile absent."
+        return
+    fi
+
+    doctor_ok "Caddyfile présent."
+
+    if grep -q 'Généré automatiquement par MediaStack\|Généré par MediaStack' \
+        "${MEDIASTACK_CADDYFILE}" 2>/dev/null; then
+        doctor_ok "Caddyfile géré par MediaStack."
+    else
+        doctor_warning "Caddyfile non généré par MediaStack (édition manuelle possible)."
+    fi
+
+    if [[ -n "$(domain_get)" ]]; then
+        doctor_ok "Domaine mémorisé : $(domain_get)"
+    else
+        doctor_warning "Aucun domaine mémorisé (mode LAN)."
+    fi
+}
+
 run_doctor() {
     local errors=0
     local warnings=0
@@ -14,6 +146,7 @@ run_doctor() {
     check_command docker "Docker"
     check_command curl "Curl"
     check_command ss "IpRoute2"
+    check_command python3 "Python 3"
 
     if docker info >/dev/null 2>&1; then
         doctor_ok "Docker répond."
@@ -31,34 +164,46 @@ run_doctor() {
         doctor_error "Docker Compose ne répond pas."
     fi
 
+    doctor_check_docker_versions
+
     doctor_section "Configuration"
 
-    if [[ -d "${MEDIASTACK_HOME}/compose" ]]; then
-        doctor_ok "Dossier Compose présent."
+    if [[ -d "${MEDIASTACK_MODULES_DIR}" ]]; then
+        doctor_ok "Dossier modules présent."
     else
-        doctor_error "Dossier Compose absent : ${MEDIASTACK_HOME}/compose"
+        doctor_error "Dossier modules absent : ${MEDIASTACK_MODULES_DIR}"
+    fi
+
+    if [[ -d "${MEDIASTACK_ENABLED_DIR}" ]]; then
+        doctor_ok "Dossier enabled présent."
+    else
+        doctor_error "Dossier enabled absent : ${MEDIASTACK_ENABLED_DIR}"
     fi
 
     local compose_files=()
     local compose_file
     local configured_service
+    local enabled_count=0
 
     while IFS= read -r configured_service; do
         [[ -n "${configured_service}" ]] || continue
+        enabled_count=$((enabled_count + 1))
         compose_files+=(
             "$(service_compose_file "${configured_service}")"
         )
     done < <(service_names)
 
     if (( ${#compose_files[@]} == 0 )); then
-        doctor_error "Aucun fichier Compose trouvé."
+        doctor_warning "Aucun module activé (utilisez media module install)."
     else
-        doctor_ok "${#compose_files[@]} fichier(s) Compose trouvé(s)."
+        doctor_ok "${enabled_count} module(s) activé(s)."
 
         for compose_file in "${compose_files[@]}"; do
             check_compose_file "${compose_file}"
         done
     fi
+
+    doctor_check_proxy_coherence
 
     doctor_section "Réseau Docker"
 
@@ -83,7 +228,9 @@ run_doctor() {
             continue
         fi
 
-        check_network_membership             "${service}"             mediastack_proxy
+        check_network_membership \
+            "${service}" \
+            mediastack_proxy
 
         if module_is_enabled "${service}" &&
             module_has_doctor "${service}"; then
@@ -100,7 +247,8 @@ run_doctor() {
             if declare -F module_doctor >/dev/null 2>&1; then
                 module_doctor
             else
-                doctor_warning                     "Doctor du module ${service} invalide : fonction module_doctor absente."
+                doctor_warning \
+                    "Doctor du module ${service} invalide : fonction module_doctor absente."
             fi
 
             unset -f module_doctor 2>/dev/null || true
@@ -111,7 +259,6 @@ run_doctor() {
 
     doctor_section "Connectivité"
 
-
     doctor_section "Ports"
 
     check_port 80 tcp
@@ -119,13 +266,29 @@ run_doctor() {
 
     doctor_section "Stockage"
 
-    check_directory /opt/mediastack
-    check_directory /opt/mediastack/compose
-    check_directory /opt/mediastack/conf
-    check_directory /opt/media
+    check_directory "${MEDIASTACK_HOME}"
+    check_directory "${MEDIASTACK_MODULES_DIR}"
+    check_directory "${MEDIASTACK_ENABLED_DIR}"
+    check_directory "${MEDIASTACK_CONFIG_DIR}"
+    check_directory "${MEDIASTACK_DATA}"
+
+    local storage_path
+    local enabled_module
+
+    while IFS= read -r enabled_module; do
+        [[ -n "${enabled_module}" ]] || continue
+        while IFS= read -r storage_path; do
+            [[ -n "${storage_path}" ]] || continue
+            [[ "${storage_path}" == *.sock ]] && continue
+            [[ "${storage_path}" == */Caddyfile ]] && continue
+            check_directory "${storage_path}"
+        done < <(module_metadata_list "${enabled_module}" storage 2>/dev/null || true)
+    done < <(module_enabled_names)
 
     check_disk /
-    check_disk /opt/media
+    check_disk "${MEDIASTACK_DATA}"
+
+    doctor_check_backups
 
     doctor_section "Sécurité"
 
@@ -140,11 +303,7 @@ run_doctor() {
         doctor_warning "UFW absent."
     fi
 
-    if systemctl is-active --quiet fail2ban 2>/dev/null; then
-        doctor_ok "Fail2ban actif."
-    else
-        doctor_warning "Fail2ban inactif."
-    fi
+    doctor_check_fail2ban
 
     if systemctl is-active --quiet unattended-upgrades 2>/dev/null; then
         doctor_ok "Mises à jour automatiques actives."

@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 readonly MEDIASTACK_HOME="${MEDIASTACK_HOME:-/opt/mediastack}"
-readonly MEDIASTACK_VERSION="2.0.0"
+readonly MEDIASTACK_VERSION="2.1.0"
 
 source "${MEDIASTACK_HOME}/lib/core/constants.sh"
 source "${MEDIASTACK_HOME}/lib/core/output.sh"

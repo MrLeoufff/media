@@ -1,2 +1,5 @@
 backup/
 *.backup*
+conf/domain
+conf/*.bak
+*.mediastack.*.bak

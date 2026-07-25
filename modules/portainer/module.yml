@@ -29,13 +29,16 @@ storage:
   - /var/run/docker.sock
   - /opt/media/portainer/data
 
+proxy:
+  enabled: false
+
 scripts:
   doctor: doctor.sh
 
 features:
   doctor: true
-  install: false
-  uninstall: false
+  install: true
+  uninstall: true
   upgrade: false
   backup: false
   restore: false

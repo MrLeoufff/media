@@ -30,13 +30,16 @@ storage:
   - /opt/media/caddy/data
   - /opt/media/caddy/config
 
+proxy:
+  enabled: false
+
 scripts:
   doctor: doctor.sh
 
 features:
   doctor: true
-  install: false
-  uninstall: false
+  install: true
+  uninstall: true
   upgrade: false
   backup: false
   restore: false

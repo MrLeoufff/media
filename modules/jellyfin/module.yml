@@ -29,13 +29,18 @@ storage:
   - /opt/media/jellyfin/cache
   - /opt/media
 
+proxy:
+  enabled: true
+  target: jellyfin:8096
+  path: /
+
 scripts:
   doctor: doctor.sh
 
 features:
   doctor: true
-  install: false
-  uninstall: false
+  install: true
+  uninstall: true
   upgrade: false
   backup: false
   restore: false

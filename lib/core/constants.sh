@@ -22,6 +22,7 @@ readonly MEDIASTACK_RESTORE_DIR="${MEDIASTACK_HOME}/restore"
 
 # Configuration générale
 readonly MEDIASTACK_CADDYFILE="${MEDIASTACK_CONFIG_DIR}/Caddyfile"
+readonly MEDIASTACK_DOMAIN_FILE="${MEDIASTACK_CONFIG_DIR}/domain"
 
 # Bibliothèques multimédias
 readonly FILMS_DIR="${MEDIASTACK_DATA}/films"

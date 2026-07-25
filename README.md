@@ -1,730 +1,244 @@
-# MediaStack
+# MediaStack 2.1
 
-MediaStack est une stack multimédia basée sur Docker, conçue pour centraliser l’installation, la gestion, la sécurisation et la sauvegarde de plusieurs services multimédias.
+MediaStack automatise l’installation et la configuration d’une stack multimédia Docker.
 
-Services actuellement intégrés :
+**Principe zero-touch** : aucune édition manuelle des fichiers Compose ni du Caddyfile. Une commande CLI provisionne dépendances, dossiers, réseau, reverse-proxy, conteneurs et diagnostic.
+
+Services intégrés :
 
 * Jellyfin
 * Caddy
 * Homepage
 * Portainer
 
-Le projet contient également des outils pour :
-
-* gérer les services Docker ;
-* configurer un nom de domaine ;
-* sécuriser le serveur ;
-* gérer le pare-feu ;
-* configurer SSH ;
-* installer Fail2ban ;
-* vérifier l’état du système ;
-* créer et restaurer des sauvegardes.
-
 ---
 
-## Structure du projet
+## Installation rapide
 
-```text
-mediastack/
-├── bin/
-│   ├── media
-│   └── media-service
-├── compose/
-│   ├── caddy.yml
-│   ├── homepage.yml
-│   ├── jellyfin.yml
-│   └── portainer.yml
-├── conf/
-│   └── Caddyfile
-├── lib/
-│   ├── backup/
-│   │   ├── backup.sh
-│   │   ├── create.sh
-│   │   └── restore.sh
-│   ├── core/
-│   │   ├── common.sh
-│   │   ├── constants.sh
-│   │   ├── output.sh
-│   │   └── router.sh
-│   ├── docker/
-│   │   ├── dashboard.sh
-│   │   └── services.sh
-│   ├── security/
-│   │   ├── audit.sh
-│   │   ├── fail2ban.sh
-│   │   ├── firewall.sh
-│   │   ├── security.sh
-│   │   ├── ssh.sh
-│   │   └── updates.sh
-│   ├── services/
-│   │   └── manager.sh
-│   ├── system/
-│   │   └── doctor.sh
-│   └── web/
-│       ├── domain.sh
-│       └── homepage.sh
-├── media.sh
-├── .gitignore
-└── README.md
-```
-
----
-
-## Prérequis
-
-Système recommandé :
-
-* Debian
-* Ubuntu Server
-* Raspberry Pi OS 64 bits
-
-Architecture compatible :
-
-* amd64
-* arm64
-
-Dépendances principales :
-
-* Git
-* Curl
-* Docker
-* Docker Compose Plugin
-
----
-
-## Installation des dépendances
-
-Mettre à jour le système :
+Prérequis : Debian / Ubuntu Server / Raspberry Pi OS 64 bits, Docker + Compose plugin, Python 3.
 
 ```bash
-apt update
-apt upgrade -y
-```
-
-Installer les paquets nécessaires :
-
-```bash
-apt install -y git curl ca-certificates
-```
-
-Installer Docker :
-
-```bash
+apt update && apt install -y git curl ca-certificates python3
 curl -fsSL https://get.docker.com | sh
-```
-
-Activer et démarrer Docker :
-
-```bash
 systemctl enable --now docker
-```
 
-Vérifier l’installation :
-
-```bash
-docker --version
-docker compose version
-```
-
----
-
-## Installation de MediaStack
-
-Cloner le dépôt :
-
-```bash
 git clone https://github.com/MrLeoufff/media.git /opt/mediastack
-```
-
-Entrer dans le dossier :
-
-```bash
 cd /opt/mediastack
-```
-
-Vérifier les permissions des scripts :
-
-```bash
-chmod +x media.sh
-chmod +x bin/media
-chmod +x bin/media-service
-find lib -type f -name "*.sh" -exec chmod +x {} \;
-```
-
-Lancer MediaStack :
-
-```bash
-./media.sh
-```
-
----
-
-## Commande globale
-
-Le script principal est :
-
-```bash
-/opt/mediastack/media.sh
-```
-
-Il est également possible d’utiliser les exécutables présents dans :
-
-```text
-/opt/mediastack/bin/
-```
-
-Exemples :
-
-```bash
-/opt/mediastack/bin/media
-/opt/mediastack/bin/media-service
-```
-
-Pour pouvoir utiliser la commande depuis n’importe quel emplacement, créer un lien symbolique :
-
-```bash
+chmod +x bin/media bin/media-service
+find lib modules tests -type f -name '*.sh' -exec chmod +x {} \;
 ln -sf /opt/mediastack/bin/media /usr/local/bin/media
 ```
 
-Puis lancer :
+Installer Jellyfin (et Caddy automatiquement) :
 
 ```bash
-media
-```
-
----
-
-## Services Docker
-
-Les fichiers Docker Compose se trouvent dans le dossier :
-
-```text
-/opt/mediastack/compose/
-```
-
-### Jellyfin
-
-```text
-compose/jellyfin.yml
-```
-
-Démarrage manuel :
-
-```bash
-docker compose -f compose/jellyfin.yml up -d
-```
-
-Arrêt :
-
-```bash
-docker compose -f compose/jellyfin.yml down
-```
-
-Logs :
-
-```bash
-docker compose -f compose/jellyfin.yml logs -f
-```
-
-### Caddy
-
-```text
-compose/caddy.yml
-```
-
-Démarrage :
-
-```bash
-docker compose -f compose/caddy.yml up -d
-```
-
-Logs :
-
-```bash
-docker compose -f compose/caddy.yml logs -f
-```
-
-Configuration :
-
-```text
-conf/Caddyfile
-```
-
-Après modification du Caddyfile :
-
-```bash
-docker compose -f compose/caddy.yml restart
-```
-
-### Homepage
-
-```text
-compose/homepage.yml
-```
-
-Démarrage :
-
-```bash
-docker compose -f compose/homepage.yml up -d
-```
-
-### Portainer
-
-```text
-compose/portainer.yml
-```
-
-Démarrage :
-
-```bash
-docker compose -f compose/portainer.yml up -d
-```
-
----
-
-## Vérification des services
-
-Afficher les conteneurs actifs :
-
-```bash
-docker ps
-```
-
-Afficher tous les conteneurs :
-
-```bash
-docker ps -a
-```
-
-Afficher les projets Docker Compose :
-
-```bash
-docker compose ls
-```
-
-Afficher l’utilisation des ressources :
-
-```bash
-docker stats
-```
-
-Afficher l’espace utilisé par Docker :
-
-```bash
-docker system df
-```
-
----
-
-## Gestion d’un service
-
-Pour redémarrer un service :
-
-```bash
-docker restart NOM_DU_CONTENEUR
-```
-
-Pour arrêter un service :
-
-```bash
-docker stop NOM_DU_CONTENEUR
-```
-
-Pour démarrer un service :
-
-```bash
-docker start NOM_DU_CONTENEUR
-```
-
-Pour consulter ses logs :
-
-```bash
-docker logs -f NOM_DU_CONTENEUR
-```
-
----
-
-## Configuration du domaine
-
-La configuration du reverse proxy est stockée dans :
-
-```text
-conf/Caddyfile
-```
-
-Après modification :
-
-```bash
-docker compose -f compose/caddy.yml restart
-```
-
-Vérifier les logs Caddy :
-
-```bash
-docker compose -f compose/caddy.yml logs --tail=100
-```
-
-Le nom de domaine doit pointer vers l’adresse IP publique du serveur.
-
-Les ports suivants doivent être accessibles :
-
-```text
-80/tcp
-443/tcp
-```
-
----
-
-## Pare-feu
-
-Vérifier l’état du pare-feu :
-
-```bash
-ufw status verbose
-```
-
-Autoriser SSH :
-
-```bash
-ufw allow OpenSSH
-```
-
-Autoriser HTTP et HTTPS :
-
-```bash
-ufw allow 80/tcp
-ufw allow 443/tcp
-```
-
-Activer le pare-feu :
-
-```bash
-ufw enable
-```
-
-Attention à toujours autoriser SSH avant d’activer UFW sur un serveur distant.
-
----
-
-## Sauvegardes
-
-Les scripts de sauvegarde sont situés dans :
-
-```text
-lib/backup/
-```
-
-Le dossier de stockage local des sauvegardes est :
-
-```text
-/opt/mediastack/backup/
-```
-
-Ce dossier est volontairement exclu du dépôt Git.
-
-Créer une sauvegarde :
-
-```bash
-bash lib/backup/create.sh
-```
-
-Ou selon les commandes intégrées :
-
-```bash
-./media.sh
-```
-
-Les archives peuvent contenir :
-
-* les fichiers de configuration ;
-* les fichiers Compose ;
-* les scripts MediaStack ;
-* certaines configurations applicatives ;
-* les données persistantes selon la configuration du script.
-
-Lister les sauvegardes :
-
-```bash
-ls -lh /opt/mediastack/backup/
-```
-
----
-
-## Restauration
-
-Les scripts de restauration se trouvent dans :
-
-```text
-lib/backup/restore.sh
-```
-
-Avant une restauration, arrêter les services concernés :
-
-```bash
-docker ps
-```
-
-Puis utiliser le script de restauration :
-
-```bash
-bash lib/backup/restore.sh
-```
-
-Toujours conserver une copie supplémentaire de la sauvegarde avant de lancer une restauration.
-
----
-
-## Mise à jour de MediaStack
-
-Entrer dans le projet :
-
-```bash
-cd /opt/mediastack
-```
-
-Récupérer les dernières modifications :
-
-```bash
-git pull
-```
-
-Vérifier l’état :
-
-```bash
-git status
-```
-
-Mettre à jour les images Docker :
-
-```bash
-docker compose -f compose/jellyfin.yml pull
-docker compose -f compose/caddy.yml pull
-docker compose -f compose/homepage.yml pull
-docker compose -f compose/portainer.yml pull
-```
-
-Recréer les conteneurs :
-
-```bash
-docker compose -f compose/jellyfin.yml up -d
-docker compose -f compose/caddy.yml up -d
-docker compose -f compose/homepage.yml up -d
-docker compose -f compose/portainer.yml up -d
-```
-
----
-
-## Mise à jour du dépôt Git
-
-Afficher les modifications :
-
-```bash
-git status
-```
-
-Ajouter les fichiers :
-
-```bash
-git add .
-```
-
-Créer un commit :
-
-```bash
-git commit -m "Description des modifications"
-```
-
-Envoyer vers GitHub :
-
-```bash
-git push
-```
-
----
-
-## Fichiers exclus de Git
-
-Le fichier `.gitignore` exclut notamment :
-
-```text
-backup/
-*.backup*
-```
-
-Les éléments suivants ne doivent jamais être ajoutés au dépôt :
-
-* clés SSH privées ;
-* mots de passe ;
-* tokens d’accès ;
-* fichiers `.env` contenant des secrets ;
-* archives de sauvegarde ;
-* certificats privés ;
-* bases de données ;
-* données personnelles.
-
-Vérifier qu’aucun secret n’est suivi :
-
-```bash
-git ls-files | grep -E '(^|/)\.env$|password|credentials|secret|private|id_ed25519'
-```
-
----
-
-## Migration vers une autre machine
-
-Pour installer la même stack sur une autre machine, par exemple un PC Aspire :
-
-### Sur la machine source
-
-Créer une sauvegarde :
-
-```bash
-cd /opt/mediastack
-bash lib/backup/create.sh
-```
-
-Lister les conteneurs et leurs volumes :
-
-```bash
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Mounts}}'
-docker volume ls
-```
-
-Copier séparément les données persistantes qui ne sont pas présentes dans Git.
-
-### Sur la machine cible
-
-Installer Docker et Git :
-
-```bash
-apt update
-apt install -y git curl ca-certificates
-curl -fsSL https://get.docker.com | sh
-systemctl enable --now docker
-```
-
-Cloner MediaStack :
-
-```bash
-git clone https://github.com/MrLeoufff/media.git /opt/mediastack
-cd /opt/mediastack
-```
-
-Restaurer les données persistantes.
-
-Démarrer les services :
-
-```bash
-docker compose -f compose/jellyfin.yml up -d
-docker compose -f compose/caddy.yml up -d
-docker compose -f compose/homepage.yml up -d
-docker compose -f compose/portainer.yml up -d
+media module install jellyfin --domain media.example.fr
 ```
 
 Vérifier :
 
 ```bash
-docker ps
-docker compose ls
+media doctor
+media module list
 ```
 
 ---
 
-## Diagnostic
-
-Vérifier les conteneurs en erreur :
-
-```bash
-docker ps -a
-```
-
-Consulter les derniers logs :
-
-```bash
-docker logs --tail=100 NOM_DU_CONTENEUR
-```
-
-Vérifier l’espace disque :
-
-```bash
-df -h
-```
-
-Vérifier la mémoire :
-
-```bash
-free -h
-```
-
-Vérifier les ports ouverts :
-
-```bash
-ss -lntup
-```
-
-Vérifier l’état de Docker :
-
-```bash
-systemctl status docker
-```
-
-Redémarrer Docker :
-
-```bash
-systemctl restart docker
-```
-
-Le projet contient également un script de diagnostic :
+## Architecture
 
 ```text
-lib/system/doctor.sh
+mediastack/
+├── bin/media                 # CLI principale (v2.1.0)
+├── modules/<nom>/
+│   ├── module.yml            # manifeste (deps, storage, proxy)
+│   ├── compose.yml           # artefact produit (ne pas éditer)
+│   └── doctor.sh             # diagnostic module
+├── enabled/                  # symlinks vers modules activés
+├── conf/
+│   ├── Caddyfile             # généré automatiquement
+│   └── domain                # domaine mémorisé
+├── lib/                      # bibliothèques Bash
+├── tests/smoke_test.sh
+└── media.sh                  # legacy (deprecated)
 ```
 
-Il peut être lancé avec :
+Chemins runtime :
+
+* Code : `/opt/mediastack`
+* Données : `/opt/media`
+
+---
+
+## Commandes modules
 
 ```bash
-bash lib/system/doctor.sh
+media module list
+media module info <module>
+media module install <module> [--domain <fqdn>]
+media module uninstall <module> [--keep-data|--purge] [--yes]
+media module enable <module>
+media module disable <module>
+media module doctor <module>
+```
+
+### Install (zero-touch)
+
+```bash
+media module install jellyfin --domain media.dwg-dev.fr
+```
+
+Enchaîne :
+
+1. résolution des `dependencies`
+2. création du réseau `mediastack_proxy`
+3. création des dossiers `storage`
+4. activation du module
+5. régénération du Caddyfile
+6. `docker compose up -d`
+7. doctor du module
+8. résumé
+
+### Uninstall
+
+```bash
+media module uninstall homepage --keep-data   # défaut
+media module uninstall homepage --purge --yes
+```
+
+Refuse la désinstallation si un autre module activé en dépend.
+
+---
+
+## Format `module.yml`
+
+```yaml
+apiVersion: mediastack/v1
+name: jellyfin
+displayName: Jellyfin
+version: "1.0.0"
+category: multimedia
+
+container:
+  name: jellyfin
+  image: jellyfin/jellyfin:latest
+
+network:
+  name: mediastack_proxy
+
+dependencies:
+  - caddy
+
+storage:
+  - /opt/media/jellyfin/config
+  - /opt/media/jellyfin/cache
+
+proxy:
+  enabled: true
+  target: jellyfin:8096
+  path: /
+
+features:
+  doctor: true
+  install: true
+  uninstall: true
+```
+
+Le bloc `proxy` alimente la génération automatique de `conf/Caddyfile`.
+
+---
+
+## Autres commandes
+
+```bash
+media start|stop|restart|status|logs|update|dashboard
+media service list|start|stop|restart|logs|update <service|all>
+media domain configure <fqdn>
+media domain status
+media security audit|fix|firewall|fail2ban|updates|ssh-audit
+media backup create|list|verify|restore
+media doctor
+media version
 ```
 
 ---
 
-## Sécurité
+## Doctor
 
-Les scripts de sécurité se trouvent dans :
-
-```text
-lib/security/
+```bash
+media doctor
+media module doctor jellyfin
 ```
 
-Ils permettent notamment de gérer :
+Contrôles principaux :
 
-* les mises à jour système ;
-* SSH ;
-* UFW ;
-* Fail2ban ;
-* les audits de sécurité.
-
-Toujours vérifier les règles SSH et UFW avant de les appliquer sur une machine distante.
+* Docker / Compose et versions
+* modules + enabled
+* cohérence du proxy généré
+* réseau `mediastack_proxy`
+* health des services
+* permissions storage
+* sauvegardes
+* UFW, Fail2ban (`ignoreip`), SSH
 
 ---
 
-## Dépôt
+## Troubleshooting
 
-Dépôt GitHub :
+### Fail2ban
 
-```text
-https://github.com/MrLeoufff/media
+```bash
+media security fail2ban
+fail2ban-client status sshd
 ```
 
-Branche principale :
+La jail MediaStack définit un `ignoreip` LAN (127.0.0.1, RFC1918).  
+Si Fail2ban ne démarre pas : `journalctl -u fail2ban -n 50`.
 
-```text
-main
+### SSH
+
+```bash
+media security ssh-audit
+media security fix
+```
+
+Vérifie notamment `PasswordAuthentication` et `PermitRootLogin`.
+
+### Proxy / domaine
+
+```bash
+media domain configure media.example.fr
+media domain status
+docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+```
+
+Ne pas éditer `conf/Caddyfile` à la main : relancer `media domain configure` ou `media module install`.
+
+---
+
+## Tests
+
+```bash
+./tests/smoke_test.sh
 ```
 
 ---
 
-## Auteur
+## Roadmap
 
-René Leliard
-MrLeoufff
+### Phase 2 — Catalogue
+
+* `catalog/` (Immich, Nextcloud, Vaultwarden, Paperless, FreshRSS, …)
+* `media module search`
+* `media module validate`
+
+### Phase 3 — Exploitation avancée
+
+* `media module upgrade` + snapshots / rollback
+* API REST + Web UI
+
+---
+
+## Legacy
+
+`media.sh` (v1.6) est conservé pour compatibilité mais **deprecated**.  
+Utiliser exclusivement `bin/media` (v2.1).

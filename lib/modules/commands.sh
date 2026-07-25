@@ -12,6 +12,10 @@ if ! declare -F doctor_ok >/dev/null 2>&1; then
     source "${MEDIASTACK_HOME}/lib/system/doctor_helpers.sh"
 fi
 
+if ! declare -F module_install >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/lifecycle.sh"
+fi
+
 module_command_error() {
     echo "[ERREUR] $*" >&2
 }
@@ -245,6 +249,7 @@ module_command_doctor() {
     doctor_file="$(module_doctor_file "${module_name}")"
 
     unset -f module_doctor 2>/dev/null || true
+    # shellcheck source=/dev/null
     source "${doctor_file}"
 
     if ! declare -F module_doctor >/dev/null 2>&1; then
@@ -259,6 +264,70 @@ module_command_doctor() {
     module_doctor
 }
 
+module_command_install() {
+    local module_name=""
+    local domain=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --domain)
+                shift
+                domain="${1:-}"
+                [[ -n "${domain}" ]] || {
+                    module_command_error "Usage : --domain <fqdn>"
+                    return 1
+                }
+                ;;
+            --domain=*)
+                domain="${1#--domain=}"
+                ;;
+            -*)
+                module_command_error "Option inconnue : $1"
+                return 1
+                ;;
+            *)
+                if [[ -z "${module_name}" ]]; then
+                    module_name="$1"
+                else
+                    module_command_error "Argument inattendu : $1"
+                    return 1
+                fi
+                ;;
+        esac
+        shift
+    done
+
+    module_install "${module_name}" "${domain}"
+}
+
+module_command_uninstall() {
+    local module_name=""
+    local opts=()
+    local arg
+
+    for arg in "$@"; do
+        case "${arg}" in
+            --purge|--keep-data|--yes|-y)
+                opts+=("${arg}")
+                ;;
+            -*)
+                module_command_error "Option inconnue : ${arg}"
+                return 1
+                ;;
+            *)
+                if [[ -z "${module_name}" ]]; then
+                    module_name="${arg}"
+                else
+                    module_command_error "Argument inattendu : ${arg}"
+                    return 1
+                fi
+                ;;
+        esac
+    done
+
+    module_uninstall "${module_name}" "${opts[@]}"
+}
+
 module_command_help() {
     cat <<'HELP'
 Utilisation :
@@ -266,29 +335,40 @@ Utilisation :
   media module info <module>
   media module enable <module>
   media module disable <module>
+  media module install <module> [--domain <fqdn>]
+  media module uninstall <module> [--keep-data|--purge] [--yes]
   media module doctor <module>
+
+Installation zero-touch :
+  media module install jellyfin --domain media.example.fr
 HELP
 }
 
 module_command_main() {
     local command_name="${1:-help}"
-    local module_name="${2:-}"
+    shift || true
 
     case "${command_name}" in
         list)
             module_command_list
             ;;
         info)
-            module_command_info "${module_name}"
+            module_command_info "${1:-}"
             ;;
         enable)
-            module_command_enable "${module_name}"
+            module_command_enable "${1:-}"
             ;;
         disable)
-            module_command_disable "${module_name}"
+            module_command_disable "${1:-}"
+            ;;
+        install)
+            module_command_install "$@"
+            ;;
+        uninstall)
+            module_command_uninstall "$@"
             ;;
         doctor)
-            module_command_doctor "${module_name}"
+            module_command_doctor "${1:-}"
             ;;
         help|-h|--help)
             module_command_help
