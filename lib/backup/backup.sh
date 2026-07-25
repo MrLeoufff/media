@@ -57,22 +57,25 @@ prune_backups() {
 }
 
 backup_command() {
-    case "${1:-list}" in
+    local subcommand="${1:-list}"
+    shift || true
+
+    case "${subcommand}" in
         create) create_backup ;;
         list) list_backups ;;
-        verify) verify_backup "${2:-}" ;;
-        restore) restore_backup "${2:-}" ;;
-        prune) shift; prune_backups "$@" ;;
+        verify) verify_backup "${1:-}" ;;
+        restore) restore_backup "$@" ;;
+        prune) prune_backups "$@" ;;
         help|-h|--help)
             cat <<'BACKUP_HELP'
 Utilisation :
   media backup create
   media backup list
   media backup verify [archive]
-  media backup restore [archive]
+  media backup restore [archive] [--dry-run]
   media backup prune [--keep <n>]
 BACKUP_HELP
             ;;
-        *) media_die "Commande backup inconnue : $1" ;;
+        *) media_die "Commande backup inconnue : ${subcommand}" ;;
     esac
 }

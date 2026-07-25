@@ -62,7 +62,7 @@ Sauvegardes
   media backup create
   media backup list
   media backup verify [archive]
-  media backup restore [archive]
+  media backup restore [archive] [--dry-run]
   media backup prune [--keep <n>]
 
 Web

@@ -117,17 +117,18 @@ create_backup() {
     archive="${BACKUP_DIR}/${basename}.tar.gz"
     checksum="${archive}.sha256"
     stage_dir="$(mktemp -d "${BACKUP_DIR}/.stage.XXXXXX")"
+    # Expansion immédiate : évite unbound variable au RETURN sous set -u.
+    # shellcheck disable=SC2064
+    trap "rm -rf '${stage_dir}'" RETURN
 
     media_info "Préparation de la sauvegarde..."
     backup_stage_tree "${stage_dir}"
 
     tar -czf "${archive}" -C "${stage_dir}" .
     (
-        cd "${BACKUP_DIR}"
+        cd "${BACKUP_DIR}" || exit 1
         sha256sum "$(basename "${archive}")" > "$(basename "${checksum}")"
     )
-
-    rm -rf "${stage_dir}"
 
     media_success "Sauvegarde créée : ${archive}"
     media_success "Checksum         : ${checksum}"

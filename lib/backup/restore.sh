@@ -21,6 +21,33 @@ resolve_backup_archive() {
         cut -d' ' -f2-
 }
 
+backup_has_manifest() {
+    local archive="$1"
+
+    tar -tzf "${archive}" ./manifest.json >/dev/null 2>&1 ||
+        tar -tzf "${archive}" manifest.json >/dev/null 2>&1
+}
+
+# Restauration fidèle : remplace le contenu et supprime les fichiers obsolètes.
+backup_sync_dir() {
+    local source_dir="$1"
+    local dest_dir="$2"
+    local dry_run="${3:-false}"
+    local -a rsync_args
+
+    [[ -d "${source_dir}" ]] || return 0
+
+    mkdir -p "${dest_dir}"
+
+    rsync_args=(-a --delete)
+    if [[ "${dry_run}" == true ]]; then
+        rsync_args+=(--dry-run --itemize-changes)
+        media_info "dry-run rsync : ${source_dir}/ -> ${dest_dir}/"
+    fi
+
+    rsync "${rsync_args[@]}" "${source_dir}/" "${dest_dir}/"
+}
+
 verify_backup() {
     local archive
     local checksum_file
@@ -52,8 +79,7 @@ verify_backup() {
     [[ -z "${unsafe_path}" ]] ||
         media_die "Chemin dangereux détecté : ${unsafe_path}"
 
-    # Évite pipefail+SIGPIPE (grep -q ferme le tube trop tôt).
-    if grep -q 'manifest.json' < <(tar -tzf "${archive}"); then
+    if backup_has_manifest "${archive}"; then
         media_success "Manifeste présent."
     else
         media_warning "Manifeste absent (archive legacy)."
@@ -65,6 +91,7 @@ verify_backup() {
 restore_backup() {
     require_root
     require_command tar
+    require_command rsync
 
     if ! declare -F service_stop_all >/dev/null 2>&1; then
         # shellcheck source=/dev/null
@@ -81,23 +108,57 @@ restore_backup() {
         source "${MEDIASTACK_HOME}/lib/web/proxy.sh"
     fi
 
-    local archive
-    local stage_dir
+    local archive=""
+    local dry_run=false
+    local stage_dir=""
     local module_name
+    local arg
 
-    archive="$(resolve_backup_archive "${1:-}")"
+    for arg in "$@"; do
+        case "${arg}" in
+            --dry-run)
+                dry_run=true
+                ;;
+            -*)
+                media_die "Option restore inconnue : ${arg}"
+                ;;
+            *)
+                if [[ -z "${archive}" ]]; then
+                    archive="${arg}"
+                else
+                    media_die "Argument inattendu : ${arg}"
+                fi
+                ;;
+        esac
+    done
+
+    # Si archive vide, resolve_backup_archive prendra la plus récente
+    archive="$(resolve_backup_archive "${archive}")"
     [[ -n "${archive}" ]] || media_die "Aucune archive disponible."
 
     verify_backup "${archive}"
 
-    media_warning "La configuration et les données applicatives seront remplacées."
-    confirm_action "Continuer la restauration ?" || media_die "Restauration annulée."
+    if [[ "${dry_run}" == true ]]; then
+        media_info "Mode dry-run : aucune modification ne sera appliquée."
+    else
+        media_warning "La configuration et les données applicatives seront remplacées (rsync --delete)."
+        confirm_action "Continuer la restauration ?" || media_die "Restauration annulée."
+    fi
 
     stage_dir="$(mktemp -d /tmp/mediastack-restore.XXXXXX)"
+    # Expansion immédiate : évite unbound variable au RETURN sous set -u.
+    # shellcheck disable=SC2064
+    trap "rm -rf '${stage_dir}'" RETURN
+
     tar -xzf "${archive}" -C "${stage_dir}"
 
-    media_info "Arrêt des services..."
-    service_stop_all || true
+    if [[ "${dry_run}" != true ]]; then
+        media_info "Arrêt des services..."
+        service_stop_all ||
+            media_die "Impossible d'arrêter tous les services."
+    else
+        media_info "dry-run : arrêt des services ignoré."
+    fi
 
     mkdir -p \
         "${MEDIASTACK_CONFIG_DIR}" \
@@ -107,45 +168,42 @@ restore_backup() {
         "${CADDY_DIR}" \
         "${HOMEPAGE_DIR}"
 
-    if [[ -d "${stage_dir}/conf" ]]; then
-        cp -a "${stage_dir}/conf/." "${MEDIASTACK_CONFIG_DIR}/"
-    fi
+    backup_sync_dir "${stage_dir}/conf" "${MEDIASTACK_CONFIG_DIR}" "${dry_run}"
+    backup_sync_dir "${stage_dir}/data/jellyfin/config" "${JELLYFIN_DIR}/config" "${dry_run}"
+    backup_sync_dir "${stage_dir}/data/portainer/data" "${PORTAINER_DIR}/data" "${dry_run}"
+    backup_sync_dir "${stage_dir}/data/caddy" "${CADDY_DIR}" "${dry_run}"
+    backup_sync_dir "${stage_dir}/data/homepage" "${HOMEPAGE_DIR}" "${dry_run}"
 
-    if [[ -d "${stage_dir}/data/jellyfin/config" ]]; then
-        cp -a "${stage_dir}/data/jellyfin/config/." "${JELLYFIN_DIR}/config/"
-    fi
-
-    if [[ -d "${stage_dir}/data/portainer/data" ]]; then
-        cp -a "${stage_dir}/data/portainer/data/." "${PORTAINER_DIR}/data/"
-    fi
-
-    if [[ -d "${stage_dir}/data/caddy" ]]; then
-        cp -a "${stage_dir}/data/caddy/." "${CADDY_DIR}/"
-    fi
-
-    if [[ -d "${stage_dir}/data/homepage" ]]; then
-        cp -a "${stage_dir}/data/homepage/." "${HOMEPAGE_DIR}/"
-    fi
-
-    # Réactiver les modules listés dans l'archive
     if [[ -f "${stage_dir}/enabled/modules.txt" ]]; then
-        find "${MEDIASTACK_ENABLED_DIR}" -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} +
-        while IFS= read -r module_name; do
-            [[ -n "${module_name}" ]] || continue
-            if module_exists "${module_name}"; then
-                module_enable "${module_name}" || true
-            else
-                media_warning "Module absent du dépôt, non réactivé : ${module_name}"
-            fi
-        done < "${stage_dir}/enabled/modules.txt"
+        if [[ "${dry_run}" == true ]]; then
+            media_info "dry-run : modules à réactiver :"
+            sed 's/^/  - /' "${stage_dir}/enabled/modules.txt"
+        else
+            find "${MEDIASTACK_ENABLED_DIR}" -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} +
+            while IFS= read -r module_name; do
+                [[ -n "${module_name}" ]] || continue
+                if module_exists "${module_name}"; then
+                    module_enable "${module_name}" ||
+                        media_die "Impossible d'activer le module : ${module_name}"
+                else
+                    media_warning "Module absent du dépôt, non réactivé : ${module_name}"
+                fi
+            done < "${stage_dir}/enabled/modules.txt"
+        fi
     fi
 
-    rm -rf "${stage_dir}"
+    if [[ "${dry_run}" == true ]]; then
+        media_success "Dry-run terminé pour : ${archive}"
+        media_info "Aucune modification n'a été appliquée."
+        return 0
+    fi
 
-    proxy_regenerate "$(domain_get)" || true
+    proxy_regenerate "$(domain_get)" ||
+        media_die "Échec de régénération du proxy."
 
     media_info "Redémarrage des services..."
-    service_start_all || true
+    service_start_all ||
+        media_die "Certains services n'ont pas redémarré."
 
     media_success "Restauration terminée depuis : ${archive}"
     media_info "Exécutez : media doctor"

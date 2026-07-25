@@ -190,7 +190,7 @@ media service list|start|stop|restart|logs|update <service|all>
 media domain configure <fqdn> [--tls off|auto]
 media domain status
 media security audit|fix|firewall|fail2ban|updates|ssh-audit
-media backup create|list|verify|restore|prune [--keep 5]
+media backup create|list|verify|restore [--dry-run]|prune [--keep 5]
 media doctor
 media version
 ```

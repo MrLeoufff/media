@@ -21,12 +21,23 @@ jobs:
           find lib modules tests -type f -name '*.sh' -print0 |
             xargs -0 -n1 bash -n
 
-      - name: ShellCheck
+      - name: ShellCheck nouveaux scripts
         run: |
-          shellcheck bin/media bin/media-service || true
-          find lib modules tests -type f -name '*.sh' -print0 |
+          shellcheck -x \
+            lib/backup/backup.sh \
+            lib/backup/create.sh \
+            lib/backup/restore.sh \
+            lib/system/status.sh
+
+      - name: ShellCheck dette existante
+        continue-on-error: true
+        run: |
+          shellcheck -x bin/media bin/media-service || true
+          find lib modules tests -type f -name '*.sh' \
+            ! -path 'lib/backup/*' \
+            ! -path 'lib/system/status.sh' \
+            -print0 |
             xargs -0 shellcheck -x || true
-        # shellcheck non bloquant en première itération (dette existante)
 
       - name: Smoke tests
         run: |
