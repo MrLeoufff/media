@@ -267,12 +267,24 @@ run_doctor() {
         doctor_warning "Impossible de résoudre github.com."
     fi
 
-    if curl -fsS --connect-timeout 5 --max-time 10 \
-        https://registry-1.docker.io/v2/ >/dev/null 2>&1; then
-        doctor_ok "Accès au registry Docker Hub OK."
-    else
-        doctor_warning "Registry Docker Hub injoignable (réseau / firewall)."
-    fi
+    # /v2/ sans auth renvoie souvent 401 : le registry est joignable.
+    local docker_hub_status
+    docker_hub_status="$(
+        curl -sS -o /dev/null -w '%{http_code}' \
+            --connect-timeout 5 \
+            --max-time 10 \
+            https://registry-1.docker.io/v2/ 2>/dev/null || true
+    )"
+
+    case "${docker_hub_status}" in
+        200|401)
+            doctor_ok "Accès au registry Docker Hub OK (${docker_hub_status})."
+            ;;
+        *)
+            doctor_warning \
+                "Registry Docker Hub injoignable (code=${docker_hub_status:-000})."
+            ;;
+    esac
 
     if [[ -n "$(domain_get)" ]]; then
         if getent hosts "$(domain_get)" >/dev/null 2>&1; then
