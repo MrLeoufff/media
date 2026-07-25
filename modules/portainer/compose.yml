@@ -10,6 +10,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/media/portainer/data:/data
 
+    # Image minimaliste (pas de shell/curl/wget) : pas de healthcheck Docker.
     networks:
       - mediastack_proxy
 

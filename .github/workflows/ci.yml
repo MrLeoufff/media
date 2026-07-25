@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/**]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: bash -n
+        run: |
+          bash -n bin/media
+          bash -n bin/media-service
+          find lib modules tests -type f -name '*.sh' -print0 |
+            xargs -0 -n1 bash -n
+
+      - name: ShellCheck
+        run: |
+          shellcheck bin/media bin/media-service || true
+          find lib modules tests -type f -name '*.sh' -print0 |
+            xargs -0 shellcheck -x || true
+        # shellcheck non bloquant en première itération (dette existante)
+
+      - name: Smoke tests
+        run: |
+          chmod +x tests/smoke_test.sh tests/lifecycle_mock_test.sh
+          ./tests/smoke_test.sh
+
+      - name: Lifecycle mock tests
+        run: ./tests/lifecycle_mock_test.sh
