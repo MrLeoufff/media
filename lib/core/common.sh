@@ -26,10 +26,6 @@ check_mediastack_environment() {
         media_die "Aucun fichier Compose trouvé dans ${MEDIASTACK_HOME}/compose"
 }
 
-compose() {
-    media_die "La fonction compose() historique n'est plus disponible. Utilisez le gestionnaire de services."
-}
-
 confirm_action() {
     local answer
     read -r -p "$1 [o/N] " answer
