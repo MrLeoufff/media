@@ -281,40 +281,52 @@ module_install_next_steps() {
     echo " À faire de votre côté (réseau / accès)"
     echo "============================================================"
     echo
-    echo "  1. Nom de domaine"
-    if [[ -n "${domain}" ]]; then
+
+    if [[ -z "${domain}" ]]; then
+        echo "  Mode : local (LAN)"
+        echo
+        echo "  1. Accès depuis votre réseau"
+        echo "     Ouvrez : http://<IP-du-serveur>:80"
+        echo "     Aucun nom de domaine ni ouverture de ports box n'est requis."
+        echo
+        echo "  2. Plus tard (Internet)"
+        echo "     media domain configure <votre.domaine> --tls off|auto"
+        echo "     puis ouvrez les ports sur la box selon le mode TLS."
+        echo
+        echo "  3. Vérifications"
+        echo "     media doctor"
+        echo "     media status"
+    else
+        echo "  Mode : internet"
+        echo
+        echo "  1. Nom de domaine"
         echo "     Domaine configuré : ${domain}"
         echo "     Créez un enregistrement DNS (A/AAAA) qui pointe vers"
         echo "     votre box / le serveur qui termine le HTTPS."
-    else
-        echo "     Aucun domaine : accès LAN uniquement (:80)."
-        echo "     Pour Internet, configurez un domaine puis :"
-        echo "       media domain configure <votre.domaine> --tls off|auto"
-    fi
-    echo
-    echo "  2. Box / routeur (NAT / redirections)"
-    if [[ "${tls_mode}" == "auto" ]]; then
-        echo "     Mode TLS = auto (MediaStack = edge public)"
-        echo "     Ouvrez et redirigez vers CE serveur :"
-        echo "       - TCP 80  (HTTP / challenge Let's Encrypt)"
-        echo "       - TCP 443 (HTTPS)"
-    else
-        echo "     Mode TLS = off (TLS géré en amont, ex. m710q)"
-        echo "     Sur la box, ouvrez 80/443 vers votre reverse-proxy edge."
-        echo "     L'edge doit faire reverse_proxy vers ce serveur :80."
-        echo "     MediaStack n'a pas besoin d'être exposé directement."
-    fi
-    echo
-    echo "  3. Pare-feu du serveur"
-    echo "     Autorisez au minimum le port 80 (et 443 si tls=auto)."
-    echo "     Exemple : media security firewall"
-    echo
-    echo "  4. Vérifications"
-    echo "     media doctor"
-    echo "     media status"
-    if [[ -n "${domain}" ]]; then
+        echo
+        echo "  2. Box / routeur (NAT / redirections)"
+        if [[ "${tls_mode}" == "auto" ]]; then
+            echo "     Mode TLS = auto (MediaStack = edge public)"
+            echo "     Ouvrez et redirigez vers CE serveur :"
+            echo "       - TCP 80  (HTTP / challenge Let's Encrypt)"
+            echo "       - TCP 443 (HTTPS)"
+        else
+            echo "     Mode TLS = off (TLS géré en amont, ex. m710q)"
+            echo "     Sur la box, ouvrez 80/443 vers votre reverse-proxy edge."
+            echo "     L'edge doit faire reverse_proxy vers ce serveur :80."
+            echo "     MediaStack n'a pas besoin d'être exposé directement."
+        fi
+        echo
+        echo "  3. Pare-feu du serveur"
+        echo "     Autorisez au minimum le port 80 (et 443 si tls=auto)."
+        echo "     Exemple : media security firewall"
+        echo
+        echo "  4. Vérifications"
+        echo "     media doctor"
+        echo "     media status"
         echo "     URL attendue : ${site}"
     fi
+
     echo
     echo "  Guide complet : /opt/mediastack/INSTALL.md"
     echo "============================================================"
@@ -371,17 +383,49 @@ module_install_execute() {
     local domain="${2:-}"
     local tls_mode="${3:-}"
     local top_level="${4:-false}"
+    local access_mode="${MEDIASTACK_ACCESS_MODE:-}"
     local network_name
     local container_name
 
-    # Choix utilisateur si non fournis en CLI (--domain / --tls).
-    if [[ -z "${domain}" ]]; then
-        domain="$(domain_prompt)"
+    # Accès : local (LAN) ou internet (domaine).
+    # --domain implique internet ; --local implique local ; sinon prompt.
+    if [[ -n "${domain}" ]]; then
+        access_mode="internet"
+    elif [[ -z "${access_mode}" ]]; then
+        access_mode="$(access_mode_prompt)"
     fi
 
-    if [[ -z "${tls_mode}" ]]; then
-        tls_mode="$(tls_mode_prompt)"
-    fi
+    case "${access_mode}" in
+        local)
+            domain=""
+            domain_clear
+            if [[ -n "${tls_mode}" && "${tls_mode}" != "off" ]]; then
+                module_lifecycle_info \
+                    "Mode local : TLS forcé à off (ignoré : ${tls_mode})."
+            fi
+            tls_mode="off"
+            ;;
+        internet)
+            if [[ -z "${domain}" ]]; then
+                domain="$(domain_prompt_internet)"
+            fi
+            [[ -n "${domain}" ]] || {
+                module_lifecycle_error \
+                    "Mode internet : un domaine est obligatoire (ou utilisez --local)."
+                return 1
+            }
+            if [[ -z "${tls_mode}" ]]; then
+                tls_mode="$(tls_mode_prompt)"
+            fi
+            ;;
+        *)
+            module_lifecycle_error "Mode d'accès invalide : ${access_mode}"
+            return 1
+            ;;
+    esac
+
+    # Propagé aux dépendances pour éviter un second prompt.
+    export MEDIASTACK_ACCESS_MODE="${access_mode}"
 
     tls_mode_set "${tls_mode}" || return 1
 
@@ -390,7 +434,7 @@ module_install_execute() {
     fi
 
     module_lifecycle_info \
-        "Installation du module ${module_name} (domaine=${domain:-LAN}, tls=${tls_mode})..."
+        "Installation du module ${module_name} (accès=${access_mode}, domaine=${domain:-LAN}, tls=${tls_mode})..."
 
     module_install_dependencies "${module_name}" "$(domain_get)" "${tls_mode}" || return 1
 

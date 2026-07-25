@@ -97,6 +97,19 @@ assert_eq "tls_mode_prompt non interactif" \
     "off" \
     "$(tls_mode_prompt </dev/null)"
 
+assert_eq "access_mode sans domaine => local" \
+    "local" \
+    "$(access_mode_prompt </dev/null)"
+
+domain_set "media.example.test"
+assert_eq "access_mode avec domaine => internet" \
+    "internet" \
+    "$(access_mode_prompt </dev/null)"
+domain_clear
+assert_eq "domain_clear efface le domaine" \
+    "" \
+    "$(domain_get)"
+
 assert_eq "tls off => http://domaine" \
     "http://media.example.test" \
     "$(proxy_site_address "media.example.test")"
@@ -195,6 +208,8 @@ assert_eq "jellyfin n'a pas de dépendants" "" "${jellyfin_deps}"
 # --- Options CLI invalides ---
 assert_false "install refuse option inconnue" \
     module_command_install jellyfin --bad-flag
+assert_false "install refuse --local avec --domain" \
+    module_command_install jellyfin --local --domain=media.example.test
 assert_false "uninstall refuse option inconnue" \
     module_command_uninstall jellyfin --explode
 assert_false "install sans nom de module" \

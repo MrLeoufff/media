@@ -268,9 +268,15 @@ module_command_install() {
     local module_name=""
     local domain=""
     local tls_mode=""
+    local access_mode=""
+    local want_local=false
+    local want_domain=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --local)
+                want_local=true
+                ;;
             --domain)
                 shift
                 domain="${1:-}"
@@ -278,9 +284,15 @@ module_command_install() {
                     module_command_error "Usage : --domain <fqdn>"
                     return 1
                 }
+                want_domain=true
                 ;;
             --domain=*)
                 domain="${1#--domain=}"
+                [[ -n "${domain}" ]] || {
+                    module_command_error "Usage : --domain=<fqdn>"
+                    return 1
+                }
+                want_domain=true
                 ;;
             --tls)
                 shift
@@ -309,7 +321,19 @@ module_command_install() {
         shift
     done
 
-    module_install "${module_name}" "${domain}" "${tls_mode}"
+    if [[ "${want_local}" == true && "${want_domain}" == true ]]; then
+        module_command_error "--local est incompatible avec --domain."
+        return 1
+    fi
+
+    if [[ "${want_local}" == true ]]; then
+        access_mode="local"
+    elif [[ "${want_domain}" == true ]]; then
+        access_mode="internet"
+    fi
+
+    MEDIASTACK_ACCESS_MODE="${access_mode}" \
+        module_install "${module_name}" "${domain}" "${tls_mode}"
 }
 
 module_command_uninstall() {
@@ -347,15 +371,18 @@ Utilisation :
   media module info <module>
   media module enable <module>
   media module disable <module>
-  media module install <module> [--domain <fqdn>] [--tls off|auto]
+  media module install <module> [--local|--domain <fqdn>] [--tls off|auto]
   media module uninstall <module> [--keep-data|--purge] [--yes]
   media module doctor <module>
 
 Installation zero-touch :
-  # Interactif : propose domaine + mode TLS (off/auto)
+  # Interactif : choix local (LAN) ou internet (domaine + TLS)
   media module install jellyfin
 
-  # Non interactif / explicite
+  # Local uniquement (pas de domaine, :80)
+  media module install jellyfin --local
+
+  # Internet / explicite
   media module install jellyfin --domain media.example.fr --tls off
   media module install jellyfin --domain media.example.fr --tls auto
 HELP

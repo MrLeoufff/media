@@ -122,8 +122,95 @@ tls_mode_prompt() {
     esac
 }
 
-# Demande interactive du domaine si absent.
-# Entrée vide => conserve le domaine mémorisé ou mode LAN.
+# Choix d'accès : local (LAN :80) ou internet (domaine).
+# Non interactif : internet si un domaine est déjà mémorisé, sinon local.
+access_mode_prompt() {
+    local current_domain
+    local current_mode
+    local choice
+
+    current_domain="$(domain_get)"
+    if [[ -n "${current_domain}" ]]; then
+        current_mode="internet"
+    else
+        current_mode="local"
+    fi
+
+    if [[ ! -t 0 ]]; then
+        printf '%s\n' "${current_mode}"
+        return 0
+    fi
+
+    echo
+    echo "Mode d'accès MediaStack"
+    echo "------------------------------------------------------------"
+    echo "  1) local    — réseau local uniquement (http://IP:80), pas de domaine"
+    echo "  2) internet — accès via nom de domaine (DNS + ports box)"
+    echo
+    if [[ "${current_mode}" == "internet" ]]; then
+        echo "Mode actuel : internet (${current_domain})"
+    else
+        echo "Mode actuel : local (LAN :80)"
+    fi
+    read -r -p "Choix [1/2] (Entrée = conserver ${current_mode}) : " choice
+
+    case "${choice}" in
+        "" )
+            printf '%s\n' "${current_mode}"
+            ;;
+        1|local|LOCAL|lan|LAN)
+            printf 'local\n'
+            ;;
+        2|internet|INTERNET|domaine|domain)
+            printf 'internet\n'
+            ;;
+        *)
+            echo "[ATTENTION] Choix invalide, conservation de : ${current_mode}" >&2
+            printf '%s\n' "${current_mode}"
+            ;;
+    esac
+}
+
+# Demande un domaine pour l'accès Internet (obligatoire en interactif).
+domain_prompt_internet() {
+    local current
+    local answer
+
+    current="$(domain_get)"
+
+    if [[ ! -t 0 ]]; then
+        printf '%s\n' "${current}"
+        return 0
+    fi
+
+    echo
+    echo "Domaine public MediaStack"
+    echo "------------------------------------------------------------"
+    echo "Un nom de domaine (DNS A/AAAA) est requis pour l'accès Internet."
+    echo
+    while true; do
+        if [[ -n "${current}" ]]; then
+            echo "Domaine actuel : ${current}"
+            read -r -p "Domaine (Entrée = conserver) : " answer
+            if [[ -z "${answer}" ]]; then
+                domain_normalize "${current}"
+                return 0
+            fi
+        else
+            read -r -p "Domaine (ex. media.example.fr) : " answer
+        fi
+
+        if [[ -n "${answer}" ]]; then
+            domain_normalize "${answer}"
+            return 0
+        fi
+
+        echo "[ATTENTION] Domaine obligatoire en mode internet." >&2
+    done
+}
+
+# Demande interactive du domaine (configure / compat).
+# Entrée vide => conserve le domaine mémorisé.
 domain_prompt() {
     local current
     local answer
@@ -138,14 +225,11 @@ domain_prompt() {
     echo
     echo "Domaine public MediaStack"
     echo "------------------------------------------------------------"
-    echo "Pour un accès Internet, un nom de domaine (DNS A/AAAA) est requis."
-    echo "Sans domaine : accès LAN uniquement sur le port 80."
-    echo
     if [[ -n "${current}" ]]; then
         echo "Domaine actuel : ${current}"
         read -r -p "Nouveau domaine (Entrée = conserver) : " answer
     else
-        read -r -p "Domaine (ex. media.example.fr, Entrée = mode LAN :80) : " answer
+        read -r -p "Domaine (ex. media.example.fr) : " answer
     fi
 
     if [[ -n "${answer}" ]]; then
@@ -153,6 +237,13 @@ domain_prompt() {
     else
         printf '%s\n' "${current}"
     fi
+}
+
+domain_clear() {
+    local domain_file
+
+    domain_file="$(domain_file_path)"
+    rm -f "${domain_file}"
 }
 
 domain_get() {

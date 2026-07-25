@@ -88,9 +88,22 @@ media module install portainer --domain media.example.fr --tls auto
 
 Le DNS du domaine doit pointer vers ce serveur. Les ports 80/443 doivent être joignables depuis Internet.
 
+### Cas C — Local uniquement (LAN)
+
+```bash
+media module install jellyfin --local
+media module install homepage --local
+media module install portainer --local
+```
+
+Accès : `http://<IP-du-serveur>:80` — pas de DNS, pas d’ouverture de ports sur la box.
+
 ### Mode interactif
 
-Sans options, MediaStack demande domaine + TLS :
+Sans options, MediaStack demande d’abord :
+
+1. **local** — LAN uniquement  
+2. **internet** — nom de domaine (+ mode TLS)
 
 ```bash
 media module install jellyfin
