@@ -10,16 +10,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/media/portainer/data:/data
 
-    healthcheck:
-      test:
-        - CMD
-        - /portainer
-        - --health-check
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
     networks:
       - mediastack_proxy
 

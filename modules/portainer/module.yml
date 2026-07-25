@@ -1,0 +1,17 @@
+name: portainer
+version: 1.0.0
+description: Gestionnaire Docker
+container: portainer
+category: administration
+
+ports:
+  - 9000
+  - 9443
+
+health:
+  protocol: https
+  port: 9443
+  path: /
+
+dependencies:
+  - caddy

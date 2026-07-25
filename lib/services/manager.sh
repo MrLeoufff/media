@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+if ! declare -F module_compose_file >/dev/null 2>&1; then
+    source "${MEDIASTACK_HOME}/lib/modules/manager.sh"
+fi
+
 service_error() {
     echo "[ERREUR] $*" >&2
 }
@@ -14,7 +18,16 @@ service_warning() {
 
 service_compose_file() {
     local service_name="$1"
-    echo "${MEDIASTACK_COMPOSE_DIR}/${service_name}.yml"
+
+    if module_is_enabled "${service_name}" &&
+        module_has_compose "${service_name}"; then
+        module_compose_file "${service_name}"
+        return
+    fi
+
+    printf '%s/%s.yml\n' \
+        "${MEDIASTACK_COMPOSE_DIR}" \
+        "${service_name}"
 }
 
 service_exists() {
@@ -42,9 +55,13 @@ service_names() {
 
     shopt -s nullglob
 
-    for file in "${MEDIASTACK_COMPOSE_DIR}"/*.yml; do
-        basename "$file" .yml
-    done | sort
+    {
+        for file in "${MEDIASTACK_COMPOSE_DIR}"/*.yml; do
+            basename "${file}" .yml
+        done
+
+        module_enabled_names
+    } | sort -u
 
     shopt -u nullglob
 }

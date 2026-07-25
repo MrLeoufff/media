@@ -94,7 +94,11 @@ run_doctor() {
         local compose_file="$1"
         local service_name
 
-        service_name="$(basename "$compose_file" .yml)"
+        service_name="$(basename "${compose_file}" .yml)"
+
+        if [[ "${service_name}" == "compose" ]]; then
+            service_name="$(basename "$(dirname "${compose_file}")")"
+        fi
 
         if docker compose \
             -f "$compose_file" \
@@ -233,10 +237,14 @@ run_doctor() {
 
     local compose_files=()
     local compose_file
+    local configured_service
 
-    shopt -s nullglob
-    compose_files=("${MEDIASTACK_HOME}/compose/"*.yml)
-    shopt -u nullglob
+    while IFS= read -r configured_service; do
+        [[ -n "${configured_service}" ]] || continue
+        compose_files+=(
+            "$(service_compose_file "${configured_service}")"
+        )
+    done < <(service_names)
 
     if (( ${#compose_files[@]} == 0 )); then
         doctor_error "Aucun fichier Compose trouvé."
@@ -244,7 +252,7 @@ run_doctor() {
         doctor_ok "${#compose_files[@]} fichier(s) Compose trouvé(s)."
 
         for compose_file in "${compose_files[@]}"; do
-            check_compose_file "$compose_file"
+            check_compose_file "${compose_file}"
         done
     fi
 
@@ -273,21 +281,42 @@ run_doctor() {
 
     doctor_section "Services"
 
-    local expected_services=(
-        caddy
-        homepage
-        jellyfin
-        portainer
-    )
-
+    local expected_services=()
     local service
+    local module_doctor_script
+
+    mapfile -t expected_services < <(service_names)
 
     for service in "${expected_services[@]}"; do
-        check_container "$service"
+        check_container "${service}"
 
-        if docker inspect "$service" >/dev/null 2>&1; then
-            check_container_health "$service"
-            check_network_membership "$service" mediastack_proxy
+        if ! docker inspect "${service}" >/dev/null 2>&1; then
+            continue
+        fi
+
+        check_network_membership             "${service}"             mediastack_proxy
+
+        if module_is_enabled "${service}" &&
+            module_has_doctor "${service}"; then
+
+            module_doctor_script="$(
+                module_doctor_file "${service}"
+            )"
+
+            unset -f module_doctor 2>/dev/null || true
+
+            # shellcheck source=/dev/null
+            source "${module_doctor_script}"
+
+            if declare -F module_doctor >/dev/null 2>&1; then
+                module_doctor
+            else
+                doctor_warning                     "Doctor du module ${service} invalide : fonction module_doctor absente."
+            fi
+
+            unset -f module_doctor 2>/dev/null || true
+        else
+            check_container_health "${service}"
         fi
     done
 
