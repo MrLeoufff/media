@@ -16,6 +16,8 @@ source "${MEDIASTACK_HOME}/lib/web/homepage.sh"
 source "${MEDIASTACK_HOME}/lib/web/domain.sh"
 source "${MEDIASTACK_HOME}/lib/services/manager.sh"
 source "${MEDIASTACK_HOME}/lib/modules/commands.sh"
+source "${MEDIASTACK_HOME}/lib/catalog/index.sh"
+source "${MEDIASTACK_HOME}/lib/catalog/commands.sh"
 source "${MEDIASTACK_HOME}/lib/system/status.sh"
 
 media_help() {
@@ -31,6 +33,20 @@ Services Docker
   media update
   media dashboard
 
+Catalogue / modules
+  media search [query] [--refresh]
+  media list
+  media info <module>
+  media install <module> [--local|--domain <fqdn>] [--tls off|auto]
+  media catalog refresh [url]
+  media module list
+  media module info <module>
+  media module enable <module>
+  media module disable <module>
+  media module install <module> [--local|--domain <fqdn>] [--tls off|auto]
+  media module uninstall <module> [--keep-data|--purge] [--yes]
+  media module doctor <module>
+
 Gestion des services
   media service list
   media service status <service>
@@ -40,15 +56,6 @@ Gestion des services
   media service logs <service>
   media service update <service|all>
   media service remove <service>
-
-Gestion des modules
-  media module list
-  media module info <module>
-  media module enable <module>
-  media module disable <module>
-  media module install <module> [--domain <fqdn>] [--tls off|auto]
-  media module uninstall <module> [--keep-data|--purge] [--yes]
-  media module doctor <module>
 
 Sécurité
   media security audit
@@ -107,6 +114,11 @@ media_main() {
         logs) stack_logs "${@:2}" ;;
         update) stack_update ;;
         dashboard) show_dashboard ;;
+        search) catalog_command_search "${@:2}" ;;
+        list) module_command_list ;;
+        info) module_command_info "${2:-}" ;;
+        install) module_command_install "${@:2}" ;;
+        catalog) catalog_command_main "${@:2}" ;;
         service)
             case "${2:-help}" in
                 list)

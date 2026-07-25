@@ -1,5 +1,12 @@
 # Changelog MediaStack
 
+## [Unreleased]
+
+### Ajouté
+- Catalogue de modules (`catalog/index.yml`, `media search`, `media catalog refresh`)
+- Aliases CLI : `media list`, `media info`, `media install`
+- Résolution de noms insensible à la casse / displayName (`media info Jellyfin`)
+
 ## [2.2.0] — 2026-07-25
 
 ### Ajouté

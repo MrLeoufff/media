@@ -60,12 +60,20 @@ Internet → [edge HTTPS :80/443] → [MediaStack HTTP :80]
 
 ## 4. Installer les services
 
+Parcourir le catalogue :
+
+```bash
+media search
+media search jelly
+media info Jellyfin
+```
+
 ### Cas A — Derrière un reverse-proxy (recommandé)
 
 ```bash
-media module install jellyfin --domain media.example.fr --tls off
-media module install homepage --domain media.example.fr --tls off
-media module install portainer --domain media.example.fr --tls off
+media install jellyfin --domain media.example.fr --tls off
+media install homepage --domain media.example.fr --tls off
+media install portainer --domain media.example.fr --tls off
 ```
 
 Sur l’edge (exemple Caddy) :

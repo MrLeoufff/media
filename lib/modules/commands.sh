@@ -20,6 +20,15 @@ module_command_error() {
     echo "[ERREUR] $*" >&2
 }
 
+# Résout l'argument utilisateur vers un id canonique (stdout).
+module_command_resolve() {
+    local input="${1:-}"
+    local resolved
+
+    resolved="$(module_resolve_name "${input}")" || return 1
+    printf '%s\n' "${resolved}"
+}
+
 module_command_list() {
     local module_name
     local display_name
@@ -81,7 +90,7 @@ module_command_list() {
 }
 
 module_command_info() {
-    local module_name="$1"
+    local module_name="${1:-}"
     local metadata_file
     local display_name
     local version
@@ -94,14 +103,20 @@ module_command_info() {
     local dependencies
 
     if [[ -z "${module_name}" ]]; then
-        module_command_error "Nom du module manquant."
+        cat <<'USAGE' >&2
+Utilisation : media module info <module>
+
+Exemples :
+  media module info jellyfin
+  media module info Jellyfin
+
+Liste des modules : media module list
+Recherche         : media search [query]
+USAGE
         return 1
     fi
 
-    if ! module_exists "${module_name}"; then
-        module_command_error "Module inconnu : ${module_name}"
-        return 1
-    fi
+    module_name="$(module_command_resolve "${module_name}")" || return 1
 
     metadata_file="$(module_metadata_file "${module_name}")"
 
@@ -183,17 +198,14 @@ module_command_info() {
 }
 
 module_command_enable() {
-    local module_name="$1"
+    local module_name="${1:-}"
 
     if [[ -z "${module_name}" ]]; then
         module_command_error "Nom du module manquant."
         return 1
     fi
 
-    if ! module_exists "${module_name}"; then
-        module_command_error "Module inconnu : ${module_name}"
-        return 1
-    fi
+    module_name="$(module_command_resolve "${module_name}")" || return 1
 
     if module_is_enabled "${module_name}"; then
         echo "[OK] Module déjà activé : ${module_name}"
@@ -205,17 +217,14 @@ module_command_enable() {
 }
 
 module_command_disable() {
-    local module_name="$1"
+    local module_name="${1:-}"
 
     if [[ -z "${module_name}" ]]; then
         module_command_error "Nom du module manquant."
         return 1
     fi
 
-    if ! module_exists "${module_name}"; then
-        module_command_error "Module inconnu : ${module_name}"
-        return 1
-    fi
+    module_name="$(module_command_resolve "${module_name}")" || return 1
 
     if ! module_is_enabled "${module_name}"; then
         echo "[OK] Module déjà désactivé : ${module_name}"
@@ -227,7 +236,7 @@ module_command_disable() {
 }
 
 module_command_doctor() {
-    local module_name="$1"
+    local module_name="${1:-}"
     local doctor_file
 
     if [[ -z "${module_name}" ]]; then
@@ -235,10 +244,7 @@ module_command_doctor() {
         return 1
     fi
 
-    if ! module_exists "${module_name}"; then
-        module_command_error "Module inconnu : ${module_name}"
-        return 1
-    fi
+    module_name="$(module_command_resolve "${module_name}")" || return 1
 
     if ! module_has_doctor "${module_name}"; then
         module_command_error \
@@ -326,6 +332,24 @@ module_command_install() {
         return 1
     fi
 
+    if [[ -z "${module_name}" ]]; then
+        module_command_error "Nom du module manquant."
+        return 1
+    fi
+
+    # Module absent localement : tenter le catalogue (source distante).
+    if ! module_resolve_name "${module_name}" >/dev/null 2>&1; then
+        if ! declare -F catalog_ensure_module >/dev/null 2>&1; then
+            # shellcheck source=/dev/null
+            source "${MEDIASTACK_HOME}/lib/catalog/index.sh" 2>/dev/null || true
+        fi
+        if declare -F catalog_ensure_module >/dev/null 2>&1; then
+            catalog_ensure_module "${module_name}" >/dev/null || true
+        fi
+    fi
+
+    module_name="$(module_command_resolve "${module_name}")" || return 1
+
     if [[ "${want_local}" == true ]]; then
         access_mode="local"
     elif [[ "${want_domain}" == true ]]; then
@@ -361,6 +385,12 @@ module_command_uninstall() {
         esac
     done
 
+    if [[ -z "${module_name}" ]]; then
+        module_command_error "Nom du module manquant."
+        return 1
+    fi
+
+    module_name="$(module_command_resolve "${module_name}")" || return 1
     module_uninstall "${module_name}" "${opts[@]}"
 }
 
