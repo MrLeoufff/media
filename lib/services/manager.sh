@@ -62,6 +62,14 @@ service_container_status() {
         "$service_name" 2>/dev/null
 }
 
+service_is_running() {
+    local service_name="$1"
+
+    docker inspect \
+        --format '{{.State.Running}}' \
+        "$service_name" 2>/dev/null | grep -qx true
+}
+
 service_ports() {
     local service_name="$1"
     local ports

@@ -3,7 +3,7 @@
 display_service_state() {
     local service="$1"
 
-    if compose ps --status running --services | grep -Fxq "${service}"; then
+    if service_is_running "${service}"; then
         printf "${COLOR_GREEN}✔${COLOR_RESET} %-18s actif\n" "${service}"
     else
         printf "${COLOR_RED}✘${COLOR_RESET} %-18s inactif\n" "${service}"
@@ -32,7 +32,7 @@ show_dashboard() {
 
     while IFS= read -r service; do
         display_service_state "${service}"
-    done < <(compose config --services)
+    done < <(service_names)
 
     if systemctl is-active --quiet smbd; then
         printf "${COLOR_GREEN}✔${COLOR_RESET} %-18s actif\n" "samba"
