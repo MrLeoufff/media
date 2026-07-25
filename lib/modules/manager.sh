@@ -18,6 +18,99 @@ module_exists() {
     [[ -d "$(module_path "${module_name}")" ]]
 }
 
+module_name_lower() {
+    printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]'
+}
+
+# Lit displayName depuis module.yml sans dépendre de metadata.sh.
+module_display_name_raw() {
+    local module_name="$1"
+    local metadata_file
+    local line
+    local value
+
+    metadata_file="$(module_metadata_file "${module_name}")"
+    [[ -f "${metadata_file}" ]] || {
+        printf '%s\n' "${module_name}"
+        return 0
+    }
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        [[ "${line}" =~ ^displayName:[[:space:]]*(.*)$ ]] || continue
+        value="${BASH_REMATCH[1]}"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+        printf '%s\n' "${value}"
+        return 0
+    done < "${metadata_file}"
+
+    printf '%s\n' "${module_name}"
+}
+
+# Résout un id canonique : exact, name (casse), puis displayName (casse).
+# Sortie : nom canonique sur stdout. Code 1 si introuvable / ambigu.
+module_resolve_name() {
+    local input="${1:-}"
+    local input_lc
+    local candidate
+    local display
+    local -a matches=()
+
+    if [[ -z "${input}" ]]; then
+        echo "[ERREUR] Nom du module manquant." >&2
+        return 1
+    fi
+
+    if module_exists "${input}" && module_is_complete "${input}"; then
+        printf '%s\n' "${input}"
+        return 0
+    fi
+
+    input_lc="$(module_name_lower "${input}")"
+
+    while IFS= read -r candidate; do
+        [[ -n "${candidate}" ]] || continue
+        if [[ "$(module_name_lower "${candidate}")" == "${input_lc}" ]]; then
+            matches+=("${candidate}")
+        fi
+    done < <(module_names)
+
+    if (( ${#matches[@]} == 1 )); then
+        printf '%s\n' "${matches[0]}"
+        return 0
+    fi
+
+    if (( ${#matches[@]} > 1 )); then
+        echo "[ERREUR] Module ambigu : ${input} (${matches[*]})" >&2
+        return 1
+    fi
+
+    matches=()
+    while IFS= read -r candidate; do
+        [[ -n "${candidate}" ]] || continue
+        display="$(module_display_name_raw "${candidate}")"
+        if [[ "$(module_name_lower "${display}")" == "${input_lc}" ]]; then
+            matches+=("${candidate}")
+        fi
+    done < <(module_names)
+
+    if (( ${#matches[@]} == 1 )); then
+        printf '%s\n' "${matches[0]}"
+        return 0
+    fi
+
+    if (( ${#matches[@]} > 1 )); then
+        echo "[ERREUR] Module ambigu : ${input} (${matches[*]})" >&2
+        return 1
+    fi
+
+    echo "[ERREUR] Module inconnu : ${input}" >&2
+    echo "Astuce : media module list   ou   media search ${input}" >&2
+    return 1
+}
+
 module_metadata_file() {
     local module_name="$1"
 

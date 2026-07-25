@@ -19,6 +19,10 @@ readonly MEDIASTACK_MODULES_DIR="${MEDIASTACK_HOME}/modules"
 readonly MEDIASTACK_ENABLED_DIR="${MEDIASTACK_HOME}/enabled"
 readonly MEDIASTACK_BACKUP_DIR="${MEDIASTACK_HOME}/backup"
 readonly MEDIASTACK_RESTORE_DIR="${MEDIASTACK_HOME}/restore"
+readonly MEDIASTACK_CATALOG_DIR="${MEDIASTACK_HOME}/catalog"
+readonly MEDIASTACK_CATALOG_INDEX="${MEDIASTACK_CATALOG_DIR}/index.yml"
+readonly MEDIASTACK_CATALOG_CACHE="${MEDIASTACK_CONFIG_DIR}/catalog-cache.yml"
+: "${MEDIASTACK_CATALOG_URL:=https://raw.githubusercontent.com/MrLeoufff/media/main/catalog/index.yml}"
 
 # Configuration générale
 readonly MEDIASTACK_CADDYFILE="${MEDIASTACK_CONFIG_DIR}/Caddyfile"

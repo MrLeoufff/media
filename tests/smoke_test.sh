@@ -8,6 +8,7 @@ trap 'rm -rf "${TMP_HOME}"' EXIT
 mkdir -p "${TMP_HOME}/conf" "${TMP_HOME}/enabled" "${TMP_HOME}/backup"
 cp -a "${ROOT_DIR}/modules" "${TMP_HOME}/"
 ln -sfn "${ROOT_DIR}/lib" "${TMP_HOME}/lib"
+ln -sfn "${ROOT_DIR}/catalog" "${TMP_HOME}/catalog"
 
 export MEDIASTACK_HOME="${TMP_HOME}"
 export MEDIASTACK_DATA="${TMP_HOME}/data"
@@ -29,6 +30,10 @@ source "${ROOT_DIR}/lib/web/proxy.sh"
 source "${ROOT_DIR}/lib/modules/lifecycle.sh"
 # shellcheck source=/dev/null
 source "${ROOT_DIR}/lib/modules/commands.sh"
+# shellcheck source=/dev/null
+source "${ROOT_DIR}/lib/catalog/index.sh"
+# shellcheck source=/dev/null
+source "${ROOT_DIR}/lib/catalog/commands.sh"
 
 failures=0
 
@@ -75,6 +80,27 @@ echo "=== Smoke MediaStack ==="
 
 assert_true "module jellyfin complet" module_is_complete jellyfin
 assert_true "module caddy complet" module_is_complete caddy
+
+assert_eq "resolve displayName Jellyfin" \
+    "jellyfin" \
+    "$(module_resolve_name Jellyfin)"
+assert_eq "resolve casse JELLYFIN" \
+    "jellyfin" \
+    "$(module_resolve_name JELLYFIN)"
+assert_false "resolve module inconnu" module_resolve_name nope-module-xyz
+
+catalog_command_search jelly > "${TMP_HOME}/search.out"
+assert_true "search jelly trouve jellyfin" \
+    grep -qi jellyfin "${TMP_HOME}/search.out"
+assert_true "catalog index présent" test -f "${MEDIASTACK_CATALOG_INDEX}"
+info_rc=0
+module_command_info >/tmp/ms-info-usage.out 2>&1 || info_rc=$?
+assert_true "info sans args affiche l'usage" test "${info_rc}" -ne 0
+assert_true "info sans args mentionne list" \
+    grep -q 'media module list' /tmp/ms-info-usage.out
+assert_eq "info Jellyfin résolu" \
+    "jellyfin" \
+    "$(module_command_info Jellyfin | awk -F': ' '/^Module/{print $2; exit}')"
 
 deps="$(module_metadata_list jellyfin dependencies | paste -sd ',' -)"
 assert_eq "dépendances jellyfin" "caddy" "${deps}"

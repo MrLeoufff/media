@@ -2,7 +2,7 @@
 
 MediaStack automatise l’installation, la configuration et l’exploitation d’une stack multimédia Docker.
 
-**Principe zero-touch** : aucune édition manuelle des fichiers Compose ni du Caddyfile. Une commande CLI provisionne dépendances, dossiers, réseau, reverse-proxy, conteneurs et diagnostic. La v2.2 ajoute la couche ops (backup, status, logs, versioning, CI).
+**Principe zero-touch** : aucune édition manuelle des fichiers Compose ni du Caddyfile. Une commande CLI provisionne dépendances, dossiers, réseau, reverse-proxy, conteneurs et diagnostic. La v2.2 ajoute la couche ops (backup, status, logs, versioning, CI) et un catalogue de modules (`media search` / `info` / `install`).
 
 Services intégrés :
 
@@ -40,6 +40,7 @@ mediastack/
 ├── VERSION                   # version semver
 ├── INSTALL.md                # guide d'installation
 ├── CHANGELOG.md
+├── catalog/index.yml         # index catalogue (search)
 ├── modules/<nom>/
 │   ├── module.yml            # manifeste (deps, storage, proxy)
 │   ├── compose.yml           # artefact produit (ne pas éditer)
@@ -65,16 +66,30 @@ Chemins runtime :
 
 ---
 
-## Commandes modules
+## Catalogue et modules
 
 ```bash
+media search                 # tous les modules du catalogue
+media search jelly           # filtre (nom, displayName, catégorie, description)
+media search --refresh       # met à jour le cache distant (GitHub)
+media list                   # modules locaux + état
+media info Jellyfin          # id ou displayName (casse ignorée)
+media install jellyfin --local
+media catalog refresh
+
 media module list
 media module info <module>
-media module install <module> [--domain <fqdn>] [--tls off|auto]
+media module install <module> [--local|--domain <fqdn>] [--tls off|auto]
 media module uninstall <module> [--keep-data|--purge] [--yes]
 media module enable <module>
 media module disable <module>
 media module doctor <module>
+```
+
+Régénérer l’index local après ajout d’un module :
+
+```bash
+python3 scripts/generate_catalog_index.py
 ```
 
 ### Install (zero-touch)

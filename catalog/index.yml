@@ -1,0 +1,29 @@
+apiVersion: mediastack/catalog/v1
+modules:
+  - name: caddy
+    displayName: Caddy
+    version: "1.0.0"
+    category: infrastructure
+    description: "Reverse proxy et terminaison HTTP/HTTPS"
+    source: local
+
+  - name: homepage
+    displayName: Homepage
+    version: "1.0.0"
+    category: dashboard
+    description: "Tableau de bord MediaStack"
+    source: local
+
+  - name: jellyfin
+    displayName: Jellyfin
+    version: "1.0.0"
+    category: multimedia
+    description: "Serveur multimedia"
+    source: local
+
+  - name: portainer
+    displayName: Portainer
+    version: "1.0.0"
+    category: administration
+    description: "Gestionnaire Docker"
+    source: local
