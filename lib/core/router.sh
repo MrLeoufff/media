@@ -16,6 +16,7 @@ source "${MEDIASTACK_HOME}/lib/web/homepage.sh"
 source "${MEDIASTACK_HOME}/lib/web/domain.sh"
 source "${MEDIASTACK_HOME}/lib/services/manager.sh"
 source "${MEDIASTACK_HOME}/lib/modules/commands.sh"
+source "${MEDIASTACK_HOME}/lib/system/status.sh"
 
 media_help() {
     cat <<EOF
@@ -25,8 +26,8 @@ Services Docker
   media start
   media stop
   media restart
-  media status
-  media logs [service]
+  media status [--json]
+  media logs <module> [--follow] [--since <durée>]
   media update
   media dashboard
 
@@ -61,7 +62,8 @@ Sauvegardes
   media backup create
   media backup list
   media backup verify [archive]
-  media backup restore [archive]
+  media backup restore [archive] [--dry-run]
+  media backup prune [--keep <n>]
 
 Web
   media homepage install
@@ -79,8 +81,16 @@ EOF
 }
 
 media_version() {
+    local commit
+
+    commit="$(
+        git -C "${MEDIASTACK_HOME}" rev-parse --short HEAD 2>/dev/null || echo unknown
+    )"
+
     media_header
     printf "MediaStack       %s\n" "${MEDIASTACK_VERSION}"
+    printf "Commit           %s\n" "${commit}"
+    printf "Channel          %s\n" "${MEDIASTACK_CHANNEL:-stable}"
     printf "Système          %s\n" "$(. /etc/os-release && echo "${PRETTY_NAME}")"
     printf "Docker           %s\n" "$(docker --version)"
     printf "Compose          %s\n" "$(docker compose version)"
@@ -93,8 +103,8 @@ media_main() {
         start) stack_start ;;
         stop) stack_stop ;;
         restart) stack_restart ;;
-        status) stack_status ;;
-        logs) stack_logs "${2:-}" ;;
+        status) stack_status "${2:-}" ;;
+        logs) stack_logs "${@:2}" ;;
         update) stack_update ;;
         dashboard) show_dashboard ;;
         service)

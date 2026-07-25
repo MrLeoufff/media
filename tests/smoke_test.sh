@@ -50,7 +50,8 @@ assert_eq() {
 assert_true() {
     local label="$1"
     shift
-    if "$@"; then
+    # Sous-shell : media_die (exit) ne doit pas tuer le runner de tests
+    if ( "$@" ); then
         echo "[OK] ${label}"
     else
         echo "[FAIL] ${label}"
@@ -61,7 +62,8 @@ assert_true() {
 assert_false() {
     local label="$1"
     shift
-    if "$@"; then
+    # Sous-shell : media_die (exit) ne doit pas tuer le runner de tests
+    if ( "$@" ); then
         echo "[FAIL] ${label} (devait échouer)"
         failures=$((failures + 1))
     else

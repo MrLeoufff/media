@@ -183,15 +183,19 @@ Le bloc `proxy` alimente la génération automatique de `conf/Caddyfile`.
 ## Autres commandes
 
 ```bash
-media start|stop|restart|status|logs|update|dashboard
+media start|stop|restart|update|dashboard
+media status [--json]
+media logs <module> [--follow] [--since 30m]
 media service list|start|stop|restart|logs|update <service|all>
-media domain configure <fqdn>
+media domain configure <fqdn> [--tls off|auto]
 media domain status
 media security audit|fix|firewall|fail2ban|updates|ssh-audit
-media backup create|list|verify|restore
+media backup create|list|verify|restore [--dry-run]|prune [--keep 5]
 media doctor
 media version
 ```
+
+Les sauvegardes produisent `mediastack-backup-YYYY-MM-DD_HHMMSS.tar.gz` + `.sha256`, avec manifeste (version, modules activés, domaine, TLS).
 
 ---
 
