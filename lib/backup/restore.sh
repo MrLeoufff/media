@@ -54,9 +54,9 @@ restore_backup() {
     media_warning "La configuration actuelle sera remplacée."
     confirm_action "Continuer ?" || media_die "Restauration annulée."
 
-    compose down
+    service_stop_all
     tar -xzf "${archive}" -C /
-    compose up -d
+    service_start_all
     systemctl restart smbd || true
 
     media_success "Restauration terminée."
