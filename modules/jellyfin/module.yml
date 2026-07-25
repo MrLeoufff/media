@@ -1,8 +1,17 @@
+apiVersion: mediastack/v1
 name: jellyfin
-version: 1.0.0
+displayName: Jellyfin
+version: "1.0.0"
 description: Serveur multimédia
-container: jellyfin
 category: multimedia
+homepage: https://jellyfin.org
+
+container:
+  name: jellyfin
+  image: jellyfin/jellyfin:latest
+
+network:
+  name: mediastack_proxy
 
 ports:
   - 8096
@@ -19,3 +28,16 @@ storage:
   - /opt/media/jellyfin/config
   - /opt/media/jellyfin/cache
   - /opt/media
+
+scripts:
+  doctor: doctor.sh
+
+features:
+  doctor: true
+  install: false
+  uninstall: false
+  upgrade: false
+  backup: false
+  restore: false
+
+enabledByDefault: true

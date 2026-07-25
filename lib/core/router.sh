@@ -15,6 +15,7 @@ source "${MEDIASTACK_HOME}/lib/backup/backup.sh"
 source "${MEDIASTACK_HOME}/lib/web/homepage.sh"
 source "${MEDIASTACK_HOME}/lib/web/domain.sh"
 source "${MEDIASTACK_HOME}/lib/services/manager.sh"
+source "${MEDIASTACK_HOME}/lib/modules/commands.sh"
 
 media_help() {
     cat <<EOF
@@ -38,6 +39,13 @@ Gestion des services
   media service logs <service>
   media service update <service|all>
   media service remove <service>
+
+Gestion des modules
+  media module list
+  media module info <module>
+  media module enable <module>
+  media module disable <module>
+  media module doctor <module>
 
 Sécurité
   media security audit
@@ -143,6 +151,9 @@ SERVICE_HELP
                     return 1
                     ;;
             esac
+            ;;
+        module)
+            module_command_main "${@:2}"
             ;;
         doctor) run_doctor ;;
         security) security_command "${2:-audit}" "${@:3}" ;;
