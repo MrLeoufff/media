@@ -23,6 +23,10 @@ readonly MEDIASTACK_RESTORE_DIR="${MEDIASTACK_HOME}/restore"
 # Configuration générale
 readonly MEDIASTACK_CADDYFILE="${MEDIASTACK_CONFIG_DIR}/Caddyfile"
 readonly MEDIASTACK_DOMAIN_FILE="${MEDIASTACK_CONFIG_DIR}/domain"
+# off  = HTTP backend (TLS terminé en amont, ex. m710q)
+# auto = HTTPS automatique Caddy (MediaStack est le reverse-proxy public)
+readonly MEDIASTACK_TLS_MODE_FILE="${MEDIASTACK_CONFIG_DIR}/tls-mode"
+: "${MEDIASTACK_TLS_MODE:=}"
 
 # Bibliothèques multimédias
 readonly FILMS_DIR="${MEDIASTACK_DATA}/films"

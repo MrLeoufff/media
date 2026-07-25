@@ -86,15 +86,25 @@ assert_eq "proxy jellyfin target" "jellyfin:8096" "${proxy_target}"
 install_feature="$(module_metadata_get jellyfin features.install)"
 assert_eq "features.install jellyfin" "true" "${install_feature}"
 
-# --- Adresse site / HTTPS auto ---
-assert_eq "domaine nu sans http://" \
+# --- Adresse site / modes TLS ---
+# Défaut : tls=off (HTTP backend derrière reverse-proxy amont, ex. m710q)
+assert_eq "tls off par défaut" "off" "$(tls_mode_get)"
+
+assert_eq "tls off => http://domaine" \
+    "http://media.example.test" \
+    "$(proxy_site_address "media.example.test")"
+
+tls_mode_set auto
+assert_eq "tls auto => domaine nu (HTTPS Caddy)" \
     "media.example.test" \
     "$(proxy_site_address "media.example.test")"
 
+tls_mode_set off
 assert_eq "domaine http explicite conservé" \
     "http://media.example.test" \
     "$(proxy_site_address "http://media.example.test")"
 
+rm -f "$(tls_mode_file_path)" "$(domain_file_path)"
 assert_eq "sans domaine => :80" \
     ":80" \
     "$(proxy_site_address "")"
@@ -107,17 +117,27 @@ assert_eq "domain_set normalise le schéma" \
 ln -sfn "../modules/jellyfin" "${MEDIASTACK_ENABLED_DIR}/jellyfin"
 ln -sfn "../modules/caddy" "${MEDIASTACK_ENABLED_DIR}/caddy"
 
+tls_mode_set off
+domain_set "media.example.test"
 proxy_write_caddyfile "media.example.test"
 
 assert_true "Caddyfile généré" test -f "${MEDIASTACK_CADDYFILE}"
-assert_true "Caddyfile domaine nu (HTTPS auto)" \
-    grep -qE '^media\.example\.test \{' "${MEDIASTACK_CADDYFILE}"
-assert_false "Caddyfile ne force pas http://" \
-    grep -q 'http://media.example.test' "${MEDIASTACK_CADDYFILE}"
+assert_true "Caddyfile HTTP backend (tls=off)" \
+    grep -qE '^http://media\.example\.test \{' "${MEDIASTACK_CADDYFILE}"
 assert_true "Caddyfile contient jellyfin" \
     grep -q 'reverse_proxy jellyfin:8096' "${MEDIASTACK_CADDYFILE}"
 assert_true "Caddyfile marque généré" \
     grep -q 'Généré automatiquement par MediaStack' "${MEDIASTACK_CADDYFILE}"
+
+tls_mode_set auto
+proxy_write_caddyfile "media.example.test"
+assert_true "Caddyfile HTTPS auto (tls=auto)" \
+    grep -qE '^media\.example\.test \{' "${MEDIASTACK_CADDYFILE}"
+assert_false "Caddyfile tls=auto sans http://" \
+    grep -q 'http://media.example.test' "${MEDIASTACK_CADDYFILE}"
+
+tls_mode_set off
+proxy_write_caddyfile "media.example.test"
 
 # --- Conflit de routes path=/ ---
 mkdir -p "${MEDIASTACK_MODULES_DIR}/fakeroot"

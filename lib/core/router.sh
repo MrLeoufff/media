@@ -45,7 +45,7 @@ Gestion des modules
   media module info <module>
   media module enable <module>
   media module disable <module>
-  media module install <module> [--domain <fqdn>]
+  media module install <module> [--domain <fqdn>] [--tls off|auto]
   media module uninstall <module> [--keep-data|--purge] [--yes]
   media module doctor <module>
 
@@ -68,7 +68,7 @@ Web
   media homepage status
   media homepage update
   media homepage remove
-  media domain configure <domaine>
+  media domain configure <domaine> [--tls off|auto]
   media domain status
 
 Diagnostic

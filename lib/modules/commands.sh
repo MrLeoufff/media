@@ -267,6 +267,7 @@ module_command_doctor() {
 module_command_install() {
     local module_name=""
     local domain=""
+    local tls_mode=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -280,6 +281,17 @@ module_command_install() {
                 ;;
             --domain=*)
                 domain="${1#--domain=}"
+                ;;
+            --tls)
+                shift
+                tls_mode="${1:-}"
+                [[ -n "${tls_mode}" ]] || {
+                    module_command_error "Usage : --tls off|auto"
+                    return 1
+                }
+                ;;
+            --tls=*)
+                tls_mode="${1#--tls=}"
                 ;;
             -*)
                 module_command_error "Option inconnue : $1"
@@ -297,7 +309,7 @@ module_command_install() {
         shift
     done
 
-    module_install "${module_name}" "${domain}"
+    module_install "${module_name}" "${domain}" "${tls_mode}"
 }
 
 module_command_uninstall() {
@@ -335,12 +347,15 @@ Utilisation :
   media module info <module>
   media module enable <module>
   media module disable <module>
-  media module install <module> [--domain <fqdn>]
+  media module install <module> [--domain <fqdn>] [--tls off|auto]
   media module uninstall <module> [--keep-data|--purge] [--yes]
   media module doctor <module>
 
 Installation zero-touch :
+  # Derrière un reverse-proxy amont (ex. m710q) — défaut tls=off
   media module install jellyfin --domain media.example.fr
+  # MediaStack est le reverse-proxy public (HTTPS auto Caddy)
+  media module install jellyfin --domain media.example.fr --tls auto
 HELP
 }
 

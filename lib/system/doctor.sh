@@ -132,6 +132,8 @@ doctor_check_proxy_coherence() {
     else
         doctor_warning "Aucun domaine mémorisé (mode LAN)."
     fi
+
+    doctor_ok "Mode TLS local : $(tls_mode_get)"
 }
 
 run_doctor() {

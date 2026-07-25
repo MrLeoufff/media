@@ -1,5 +1,5 @@
 # Généré automatiquement par MediaStack — ne pas éditer à la main
-media.dwg-dev.fr {
+http://media.dwg-dev.fr {
     encode zstd gzip
 
     header {

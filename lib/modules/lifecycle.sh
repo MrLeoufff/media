@@ -207,6 +207,7 @@ module_dependents() {
 module_install_dependencies() {
     local module_name="$1"
     local domain="${2:-}"
+    local tls_mode="${3:-}"
     local dependency
 
     while IFS= read -r dependency; do
@@ -231,7 +232,7 @@ module_install_dependencies() {
         fi
 
         module_lifecycle_info "Installation de la dépendance : ${dependency}"
-        module_install "${dependency}" "${domain}" || return 1
+        module_install "${dependency}" "${domain}" "${tls_mode}" || return 1
     done < <(module_metadata_list "${module_name}" dependencies 2>/dev/null || true)
 }
 
@@ -269,6 +270,7 @@ module_install_summary() {
 module_install() {
     local module_name="$1"
     local domain="${2:-}"
+    local tls_mode="${3:-}"
     local network_name
     local container_name
 
@@ -291,13 +293,17 @@ module_install() {
     require_command docker
     require_command python3
 
+    if [[ -n "${tls_mode}" ]]; then
+        tls_mode_set "${tls_mode}" || return 1
+    fi
+
     if [[ -n "${domain}" ]]; then
         domain_set "${domain}"
     fi
 
     module_lifecycle_info "Installation du module ${module_name}..."
 
-    module_install_dependencies "${module_name}" "$(domain_get)" || return 1
+    module_install_dependencies "${module_name}" "$(domain_get)" "${tls_mode}" || return 1
 
     network_name="$(
         module_metadata_get_or_default \

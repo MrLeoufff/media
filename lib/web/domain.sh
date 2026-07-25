@@ -6,14 +6,44 @@ fi
 
 configure_domain() {
     require_root
-    local domain="${1:-}"
+    local domain=""
+    local tls_mode=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --tls)
+                shift
+                tls_mode="${1:-}"
+                [[ -n "${tls_mode}" ]] ||
+                    media_die "Usage : media domain configure <domaine> [--tls off|auto]"
+                ;;
+            --tls=*)
+                tls_mode="${1#--tls=}"
+                ;;
+            -*)
+                media_die "Option inconnue : $1"
+                ;;
+            *)
+                if [[ -z "${domain}" ]]; then
+                    domain="$1"
+                else
+                    media_die "Argument inattendu : $1"
+                fi
+                ;;
+        esac
+        shift
+    done
 
     [[ -n "${domain}" ]] ||
-        media_die "Usage : media domain configure media.example.fr"
+        media_die "Usage : media domain configure media.example.fr [--tls off|auto]"
 
-    proxy_regenerate "${domain}"
-    media_success "Domaine configuré : ${domain}"
-    media_info "Caddyfile régénéré automatiquement (aucune édition manuelle)."
+    proxy_regenerate "${domain}" "${tls_mode}"
+    media_success "Domaine configuré : ${domain} (tls=$(tls_mode_get))"
+    if [[ "$(tls_mode_get)" == "off" ]]; then
+        media_info "Mode HTTP backend : le TLS doit être terminé en amont (ex. m710q)."
+    else
+        media_info "Mode HTTPS auto : Caddy gère Let's Encrypt sur ce serveur."
+    fi
 }
 
 domain_status() {
@@ -27,7 +57,9 @@ domain_status() {
         media_warning "Aucun domaine mémorisé (mode LAN / :80)."
     fi
 
+    echo "Mode TLS        : $(tls_mode_get)"
     echo
+
     if [[ -f "${CADDYFILE}" ]]; then
         cat "${CADDYFILE}"
     else
@@ -37,7 +69,7 @@ domain_status() {
 
 domain_command() {
     case "${1:-status}" in
-        configure) configure_domain "${2:-}" ;;
+        configure) shift; configure_domain "$@" ;;
         status) domain_status ;;
         *) media_die "Commande domain inconnue : $1" ;;
     esac

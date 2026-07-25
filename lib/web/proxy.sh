@@ -13,9 +13,14 @@ if ! declare -F module_metadata_get_or_default >/dev/null 2>&1; then
 fi
 
 : "${MEDIASTACK_DOMAIN_FILE:=${MEDIASTACK_CONFIG_DIR}/domain}"
+: "${MEDIASTACK_TLS_MODE_FILE:=${MEDIASTACK_CONFIG_DIR}/tls-mode}"
 
 domain_file_path() {
     printf '%s\n' "${MEDIASTACK_DOMAIN_FILE}"
+}
+
+tls_mode_file_path() {
+    printf '%s\n' "${MEDIASTACK_TLS_MODE_FILE}"
 }
 
 domain_normalize() {
@@ -26,6 +31,52 @@ domain_normalize() {
     domain="${domain%%/*}"
 
     printf '%s\n' "${domain}"
+}
+
+# Mode TLS du Caddy local MediaStack :
+#   off  (défaut) — HTTP backend, TLS terminé en amont (ex. m710q)
+#   auto          — HTTPS automatique Let's Encrypt (MediaStack = edge)
+tls_mode_get() {
+    local mode_file
+    local mode
+
+    if [[ -n "${MEDIASTACK_TLS_MODE:-}" ]]; then
+        mode="${MEDIASTACK_TLS_MODE}"
+    else
+        mode_file="$(tls_mode_file_path)"
+        if [[ -f "${mode_file}" ]]; then
+            mode="$(tr -d '[:space:]' < "${mode_file}")"
+        else
+            mode="off"
+        fi
+    fi
+
+    case "${mode}" in
+        off|auto)
+            printf '%s\n' "${mode}"
+            ;;
+        *)
+            printf 'off\n'
+            ;;
+    esac
+}
+
+tls_mode_set() {
+    local mode="${1:-off}"
+    local mode_file
+
+    case "${mode}" in
+        off|auto)
+            ;;
+        *)
+            echo "[ERREUR] Mode TLS invalide : ${mode} (off|auto)" >&2
+            return 1
+            ;;
+    esac
+
+    mode_file="$(tls_mode_file_path)"
+    mkdir -p "$(dirname "${mode_file}")"
+    printf '%s\n' "${mode}" > "${mode_file}"
 }
 
 domain_get() {
@@ -47,14 +98,16 @@ domain_set() {
     printf '%s\n' "${domain}" > "${domain_file}"
 }
 
-# Adresse de site Caddy.
-# Domaine nu => HTTPS automatique (Let's Encrypt).
-# Préfixe http(s):// conservé si fourni explicitement.
-# Sans domaine => écoute LAN :80.
+# Adresse de site Caddy selon le mode TLS.
+# - tls off  + domaine => http://domaine  (derrière reverse-proxy amont)
+# - tls auto + domaine => domaine nu      (HTTPS auto Caddy)
+# - sans domaine       => :80
 proxy_site_address() {
     local domain="${1:-}"
+    local tls_mode
 
     [[ -n "${domain}" ]] || domain="$(domain_get)"
+    tls_mode="$(tls_mode_get)"
 
     if [[ -z "${domain}" ]]; then
         printf ':80\n'
@@ -66,7 +119,13 @@ proxy_site_address() {
         return
     fi
 
-    printf '%s\n' "$(domain_normalize "${domain}")"
+    domain="$(domain_normalize "${domain}")"
+
+    if [[ "${tls_mode}" == "auto" ]]; then
+        printf '%s\n' "${domain}"
+    else
+        printf 'http://%s\n' "${domain}"
+    fi
 }
 
 proxy_module_enabled() {
@@ -258,12 +317,17 @@ proxy_reload_caddy() {
 
 proxy_regenerate() {
     local domain="${1:-}"
+    local tls_mode="${2:-}"
+
+    if [[ -n "${tls_mode}" ]]; then
+        tls_mode_set "${tls_mode}" || return 1
+    fi
 
     if [[ -n "${domain}" ]]; then
         domain_set "${domain}"
     fi
 
     proxy_write_caddyfile "$(domain_get)" || return 1
-    media_success "Caddyfile généré : ${MEDIASTACK_CADDYFILE}"
+    media_success "Caddyfile généré : ${MEDIASTACK_CADDYFILE} (tls=$(tls_mode_get))"
     proxy_reload_caddy
 }
