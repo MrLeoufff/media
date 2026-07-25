@@ -90,6 +90,11 @@ assert_eq "features.install jellyfin" "true" "${install_feature}"
 # Défaut : tls=off (HTTP backend derrière reverse-proxy amont, ex. m710q)
 assert_eq "tls off par défaut" "off" "$(tls_mode_get)"
 
+# Sans TTY, le prompt conserve le mode courant (pas de blocage install)
+assert_eq "tls_mode_prompt non interactif" \
+    "off" \
+    "$(tls_mode_prompt </dev/null)"
+
 assert_eq "tls off => http://domaine" \
     "http://media.example.test" \
     "$(proxy_site_address "media.example.test")"

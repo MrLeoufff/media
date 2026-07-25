@@ -37,6 +37,10 @@ configure_domain() {
     [[ -n "${domain}" ]] ||
         media_die "Usage : media domain configure media.example.fr [--tls off|auto]"
 
+    if [[ -z "${tls_mode}" ]]; then
+        tls_mode="$(tls_mode_prompt)"
+    fi
+
     proxy_regenerate "${domain}" "${tls_mode}"
     media_success "Domaine configuré : ${domain} (tls=$(tls_mode_get))"
     if [[ "$(tls_mode_get)" == "off" ]]; then

@@ -352,9 +352,11 @@ Utilisation :
   media module doctor <module>
 
 Installation zero-touch :
-  # Derrière un reverse-proxy amont (ex. m710q) — défaut tls=off
-  media module install jellyfin --domain media.example.fr
-  # MediaStack est le reverse-proxy public (HTTPS auto Caddy)
+  # Interactif : propose domaine + mode TLS (off/auto)
+  media module install jellyfin
+
+  # Non interactif / explicite
+  media module install jellyfin --domain media.example.fr --tls off
   media module install jellyfin --domain media.example.fr --tls auto
 HELP
 }

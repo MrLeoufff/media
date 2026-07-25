@@ -79,6 +79,75 @@ tls_mode_set() {
     printf '%s\n' "${mode}" > "${mode_file}"
 }
 
+# Demande interactive du mode TLS si non fourni en CLI.
+# Non interactif (pas de TTY) => conserve le mode mémorisé, sinon off.
+tls_mode_prompt() {
+    local current
+    local choice
+
+    current="$(tls_mode_get)"
+
+    if [[ ! -t 0 ]]; then
+        printf '%s\n' "${current}"
+        return 0
+    fi
+
+    echo
+    echo "Mode TLS du Caddy local MediaStack"
+    echo "------------------------------------------------------------"
+    echo "  1) off  — HTTP backend (TLS terminé en amont, ex. m710q)"
+    echo "  2) auto — HTTPS automatique Let's Encrypt (MediaStack = edge)"
+    echo
+    echo "Mode actuel : ${current}"
+    read -r -p "Choix [1/2] (Entrée = conserver ${current}) : " choice
+
+    case "${choice}" in
+        "" )
+            printf '%s\n' "${current}"
+            ;;
+        1|off|OFF)
+            printf 'off\n'
+            ;;
+        2|auto|AUTO)
+            printf 'auto\n'
+            ;;
+        *)
+            echo "[ATTENTION] Choix invalide, conservation de : ${current}" >&2
+            printf '%s\n' "${current}"
+            ;;
+    esac
+}
+
+# Demande interactive du domaine si absent.
+# Entrée vide => conserve le domaine mémorisé ou mode LAN.
+domain_prompt() {
+    local current
+    local answer
+
+    current="$(domain_get)"
+
+    if [[ ! -t 0 ]]; then
+        printf '%s\n' "${current}"
+        return 0
+    fi
+
+    echo
+    echo "Domaine public MediaStack"
+    echo "------------------------------------------------------------"
+    if [[ -n "${current}" ]]; then
+        echo "Domaine actuel : ${current}"
+        read -r -p "Nouveau domaine (Entrée = conserver) : " answer
+    else
+        read -r -p "Domaine (ex. media.example.fr, Entrée = mode LAN :80) : " answer
+    fi
+
+    if [[ -n "${answer}" ]]; then
+        domain_normalize "${answer}"
+    else
+        printf '%s\n' "${current}"
+    fi
+}
+
 domain_get() {
     local domain_file
     domain_file="$(domain_file_path)"

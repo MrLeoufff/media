@@ -293,15 +293,23 @@ module_install() {
     require_command docker
     require_command python3
 
-    if [[ -n "${tls_mode}" ]]; then
-        tls_mode_set "${tls_mode}" || return 1
+    # Choix utilisateur si non fournis en CLI (--domain / --tls).
+    if [[ -z "${domain}" ]]; then
+        domain="$(domain_prompt)"
     fi
+
+    if [[ -z "${tls_mode}" ]]; then
+        tls_mode="$(tls_mode_prompt)"
+    fi
+
+    tls_mode_set "${tls_mode}" || return 1
 
     if [[ -n "${domain}" ]]; then
         domain_set "${domain}"
     fi
 
-    module_lifecycle_info "Installation du module ${module_name}..."
+    module_lifecycle_info \
+        "Installation du module ${module_name} (domaine=${domain:-LAN}, tls=${tls_mode})..."
 
     module_install_dependencies "${module_name}" "$(domain_get)" "${tls_mode}" || return 1
 

@@ -34,13 +34,22 @@ ln -sf /opt/mediastack/bin/media /usr/local/bin/media
 Installer Jellyfin (et Caddy automatiquement) :
 
 ```bash
-# Topologie recommandée ici : TLS terminé en amont (ex. m710q),
-# Aspire/MediaStack reste en HTTP backend (tls=off, défaut).
-media module install jellyfin --domain media.example.fr
+# Interactif : demande le domaine et le mode TLS
+media module install jellyfin
 
-# Si MediaStack EST le reverse-proxy public (HTTPS auto Caddy) :
-# media module install jellyfin --domain media.example.fr --tls auto
+# Ou explicite (scripts / non interactif)
+media module install jellyfin --domain media.example.fr --tls off
+media module install jellyfin --domain media.example.fr --tls auto
 ```
+
+Pendant l’install (TTY), MediaStack propose :
+
+1. **domaine** (ou Entrée = conserver / mode LAN)  
+2. **mode TLS** :
+   - `off` — HTTP backend, TLS terminé en amont (ex. **m710q**)
+   - `auto` — HTTPS automatique Caddy (MediaStack = edge public)
+
+Sans TTY (CI/script), le mode mémorisé est conservé (`off` par défaut).
 
 ### Topologie reverse-proxy
 
@@ -50,8 +59,8 @@ media module install jellyfin --domain media.example.fr
 | MediaStack | ex. **Aspire** | HTTP backend (`http://media…` ou `:80`) |
 
 ```bash
-media domain configure media.dwg-dev.fr --tls off   # défaut
-media domain configure media.example.fr --tls auto  # MediaStack = edge
+media domain configure media.dwg-dev.fr --tls off
+media domain configure media.example.fr --tls auto
 ```
 
 Vérifier :
