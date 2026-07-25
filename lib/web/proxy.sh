@@ -18,41 +18,55 @@ domain_file_path() {
     printf '%s\n' "${MEDIASTACK_DOMAIN_FILE}"
 }
 
+domain_normalize() {
+    local domain="${1:-}"
+
+    domain="${domain#http://}"
+    domain="${domain#https://}"
+    domain="${domain%%/*}"
+
+    printf '%s\n' "${domain}"
+}
+
 domain_get() {
     local domain_file
     domain_file="$(domain_file_path)"
 
     if [[ -f "${domain_file}" ]]; then
-        tr -d '[:space:]' < "${domain_file}"
+        domain_normalize "$(tr -d '[:space:]' < "${domain_file}")"
     fi
 }
 
 domain_set() {
-    local domain="$1"
+    local domain
     local domain_file
 
+    domain="$(domain_normalize "$1")"
     domain_file="$(domain_file_path)"
     mkdir -p "$(dirname "${domain_file}")"
     printf '%s\n' "${domain}" > "${domain_file}"
 }
 
+# Adresse de site Caddy.
+# Domaine nu => HTTPS automatique (Let's Encrypt).
+# Préfixe http(s):// conservé si fourni explicitement.
+# Sans domaine => écoute LAN :80.
 proxy_site_address() {
     local domain="${1:-}"
 
-    if [[ -z "${domain}" ]]; then
-        domain="$(domain_get)"
-    fi
+    [[ -n "${domain}" ]] || domain="$(domain_get)"
 
-    if [[ -n "${domain}" ]]; then
-        if [[ "${domain}" == http://* || "${domain}" == https://* ]]; then
-            printf '%s\n' "${domain}"
-        else
-            printf 'http://%s\n' "${domain}"
-        fi
+    if [[ -z "${domain}" ]]; then
+        printf ':80\n'
         return
     fi
 
-    printf ':80\n'
+    if [[ "${domain}" == http://* || "${domain}" == https://* ]]; then
+        printf '%s\n' "${domain}"
+        return
+    fi
+
+    printf '%s\n' "$(domain_normalize "${domain}")"
 }
 
 proxy_module_enabled() {
@@ -67,6 +81,12 @@ proxy_module_enabled() {
     )"
 
     [[ "${enabled}" == "true" ]]
+}
+
+proxy_is_root_path() {
+    local path="${1:-/}"
+
+    [[ -z "${path}" || "${path}" == "/" || "${path}" == "/*" ]]
 }
 
 proxy_collect_routes() {
@@ -101,6 +121,47 @@ proxy_collect_routes() {
     done < <(module_enabled_names)
 }
 
+# Refuse plusieurs modules sur le même path (dont /).
+proxy_validate_routes() {
+    local routes=("$@")
+    local line
+    local module_name
+    local path
+    local target
+    local seen_paths=()
+    local seen_modules=()
+    local idx
+    local root_modules=()
+
+    for line in "${routes[@]}"; do
+        IFS=$'\t' read -r module_name path target <<< "${line}"
+        [[ -n "${path}" ]] || path="/"
+
+        if proxy_is_root_path "${path}"; then
+            root_modules+=("${module_name}")
+            path="/"
+        fi
+
+        for idx in "${!seen_paths[@]}"; do
+            if [[ "${seen_paths[$idx]}" == "${path}" ]]; then
+                echo "[ERREUR] Conflit de route proxy '${path}' entre ${seen_modules[$idx]} et ${module_name}." >&2
+                echo "[ERREUR] Utilisez un sous-domaine, un path distinct, ou un seul module sur '/'." >&2
+                return 1
+            fi
+        done
+
+        seen_paths+=("${path}")
+        seen_modules+=("${module_name}")
+    done
+
+    if (( ${#root_modules[@]} > 1 )); then
+        echo "[ERREUR] Plusieurs modules proxy sur path=/ : ${root_modules[*]}" >&2
+        return 1
+    fi
+
+    return 0
+}
+
 proxy_write_caddyfile() {
     local domain="${1:-}"
     local site_address
@@ -110,6 +171,7 @@ proxy_write_caddyfile() {
     local path
     local target
     local default_target=""
+    local default_module=""
     local has_path_routes=false
 
     site_address="$(proxy_site_address "${domain}")"
@@ -119,6 +181,10 @@ proxy_write_caddyfile() {
         [[ -n "${line}" ]] || continue
         routes+=("${line}")
     done < <(proxy_collect_routes)
+
+    if (( ${#routes[@]} > 0 )); then
+        proxy_validate_routes "${routes[@]}" || return 1
+    fi
 
     if (( ${#routes[@]} == 0 )); then
         cat > "${MEDIASTACK_CADDYFILE}" <<EOF
@@ -132,8 +198,9 @@ EOF
 
     for line in "${routes[@]}"; do
         IFS=$'\t' read -r module_name path target <<< "${line}"
-        if [[ "${path}" == "/" || "${path}" == "/*" || -z "${path}" ]]; then
+        if proxy_is_root_path "${path}"; then
             default_target="${target}"
+            default_module="${module_name}"
         else
             has_path_routes=true
         fi
@@ -153,7 +220,7 @@ EOF
         if [[ "${has_path_routes}" == true ]]; then
             for line in "${routes[@]}"; do
                 IFS=$'\t' read -r module_name path target <<< "${line}"
-                if [[ "${path}" == "/" || "${path}" == "/*" || -z "${path}" ]]; then
+                if proxy_is_root_path "${path}"; then
                     continue
                 fi
                 printf '    handle %s {\n' "${path}"
@@ -168,7 +235,7 @@ EOF
             fi
         else
             if [[ -z "${default_target}" ]]; then
-                IFS=$'\t' read -r _ _ default_target <<< "${routes[0]}"
+                IFS=$'\t' read -r default_module _ default_target <<< "${routes[0]}"
             fi
             printf '    reverse_proxy %s\n' "${default_target}"
         fi
@@ -196,7 +263,7 @@ proxy_regenerate() {
         domain_set "${domain}"
     fi
 
-    proxy_write_caddyfile "$(domain_get)"
+    proxy_write_caddyfile "$(domain_get)" || return 1
     media_success "Caddyfile généré : ${MEDIASTACK_CADDYFILE}"
     proxy_reload_caddy
 }

@@ -259,6 +259,27 @@ run_doctor() {
 
     doctor_section "Connectivité"
 
+    if getent hosts github.com >/dev/null 2>&1; then
+        doctor_ok "Résolution DNS github.com OK."
+    else
+        doctor_warning "Impossible de résoudre github.com."
+    fi
+
+    if curl -fsS --connect-timeout 5 --max-time 10 \
+        https://registry-1.docker.io/v2/ >/dev/null 2>&1; then
+        doctor_ok "Accès au registry Docker Hub OK."
+    else
+        doctor_warning "Registry Docker Hub injoignable (réseau / firewall)."
+    fi
+
+    if [[ -n "$(domain_get)" ]]; then
+        if getent hosts "$(domain_get)" >/dev/null 2>&1; then
+            doctor_ok "Résolution DNS du domaine MediaStack OK."
+        else
+            doctor_warning "Domaine MediaStack non résolu : $(domain_get)"
+        fi
+    fi
+
     doctor_section "Ports"
 
     check_port 80 tcp
@@ -324,12 +345,28 @@ run_doctor() {
         doctor_warning "Authentification SSH par mot de passe potentiellement active."
     fi
 
-    if grep -i '^permitrootlogin no$' \
-        <<< "$sshd_configuration" >/dev/null; then
-        doctor_ok "Connexion SSH root désactivée."
-    else
-        doctor_warning "Connexion SSH root non totalement désactivée."
-    fi
+    local permit_root_login
+    permit_root_login="$(
+        awk 'tolower($1)=="permitrootlogin" {print tolower($2); exit}' \
+            <<< "${sshd_configuration}"
+    )"
+
+    case "${permit_root_login}" in
+        no)
+            doctor_ok "Connexion SSH root désactivée."
+            ;;
+        prohibit-password|without-password)
+            doctor_ok "Connexion SSH root par clé uniquement (prohibit-password)."
+            ;;
+        yes|"")
+            doctor_warning \
+                "Connexion SSH root autorisée par mot de passe (${permit_root_login:-inconnue})."
+            ;;
+        *)
+            doctor_warning \
+                "Paramètre PermitRootLogin inattendu : ${permit_root_login}."
+            ;;
+    esac
 
     doctor_section "Résumé"
 

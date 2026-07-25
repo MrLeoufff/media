@@ -37,6 +37,9 @@ Installer Jellyfin (et Caddy automatiquement) :
 media module install jellyfin --domain media.example.fr
 ```
 
+Le domaine est écrit **sans** préfixe `http://` dans le Caddyfile, afin que Caddy active automatiquement HTTPS (Let's Encrypt).  
+Le DNS du domaine doit pointer vers le serveur, et les ports 80/443 doivent être joignables.
+
 Vérifier :
 
 ```bash

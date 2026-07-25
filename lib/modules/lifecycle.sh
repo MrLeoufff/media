@@ -23,20 +23,48 @@ fi
 module_lifecycle_run_doctor() {
     local module_name="$1"
     local doctor_file
+    local doctor_rc=0
 
     module_has_doctor "${module_name}" || return 0
+
+    if ! declare -F doctor_error >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "${MEDIASTACK_HOME}/lib/system/doctor_helpers.sh"
+    fi
+
+    # Compteurs utilisés par doctor_ok / doctor_warning / doctor_error
+    checks=0
+    warnings=0
+    errors=0
 
     doctor_file="$(module_doctor_file "${module_name}")"
     unset -f module_doctor 2>/dev/null || true
     # shellcheck source=/dev/null
     source "${doctor_file}"
 
-    if declare -F module_doctor >/dev/null 2>&1; then
-        echo "Diagnostic du module ${module_name}"
-        echo "------------------------------------------------------------"
-        module_doctor || true
-        unset -f module_doctor 2>/dev/null || true
+    if ! declare -F module_doctor >/dev/null 2>&1; then
+        module_lifecycle_error \
+            "Le fichier ${doctor_file} ne définit pas module_doctor()."
+        return 1
     fi
+
+    echo "Diagnostic du module ${module_name}"
+    echo "------------------------------------------------------------"
+    module_doctor || doctor_rc=$?
+    unset -f module_doctor 2>/dev/null || true
+
+    if (( errors > 0 || doctor_rc != 0 )); then
+        module_lifecycle_error \
+            "Diagnostic critique en échec pour ${module_name} (errors=${errors}, rc=${doctor_rc})."
+        return 1
+    fi
+
+    if (( warnings > 0 )); then
+        module_lifecycle_info \
+            "Diagnostic avec ${warnings} avertissement(s) — installation poursuivie."
+    fi
+
+    return 0
 }
 
 module_lifecycle_error() {
@@ -299,7 +327,11 @@ module_install() {
     module_lifecycle_ok "Conteneur démarré : ${container_name}"
 
     module_lifecycle_info "Diagnostic du module..."
-    module_lifecycle_run_doctor "${module_name}"
+    if ! module_lifecycle_run_doctor "${module_name}"; then
+        module_lifecycle_error \
+            "Installation de ${module_name} annulée : échec du diagnostic."
+        return 1
+    fi
 
     module_install_summary "${module_name}"
     module_lifecycle_ok "Installation terminée : ${module_name}"
