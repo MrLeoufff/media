@@ -1,0 +1,21 @@
+name: jellyfin
+version: 1.0.0
+description: Serveur multimédia
+container: jellyfin
+category: multimedia
+
+ports:
+  - 8096
+
+health:
+  protocol: http
+  port: 8096
+  path: /System/Info/Public
+
+dependencies:
+  - caddy
+
+storage:
+  - /opt/media/jellyfin/config
+  - /opt/media/jellyfin/cache
+  - /opt/media

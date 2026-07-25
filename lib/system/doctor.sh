@@ -327,17 +327,6 @@ run_doctor() {
         "http://127.0.0.1" \
         "media.dwg-dev.fr"
 
-    if docker exec caddy sh -c \
-        'wget -q -O /dev/null -T 10 http://jellyfin:8096/System/Info/Public' \
-        >/dev/null 2>&1; then
-        doctor_ok "Caddy peut joindre Jellyfin."
-    else
-    	doctor_error "Caddy ne peut pas joindre Jellyfin."
-    fi
-
-    check_local_http \
-        "Accès public Jellyfin" \
-        "https://media.dwg-dev.fr"
 
     doctor_section "Ports"
 
@@ -350,7 +339,6 @@ run_doctor() {
     check_directory /opt/mediastack/compose
     check_directory /opt/mediastack/conf
     check_directory /opt/media
-    check_directory /opt/media/jellyfin/config
 
     check_disk /
     check_disk /opt/media
