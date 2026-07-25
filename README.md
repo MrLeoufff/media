@@ -22,12 +22,14 @@ apt update && apt install -y git curl ca-certificates python3
 curl -fsSL https://get.docker.com | sh
 systemctl enable --now docker
 
-git clone https://github.com/MrLeoufff/media.git /opt/mediastack
+git clone -b feature/mediastack-2.1 https://github.com/MrLeoufff/media.git /opt/mediastack
 cd /opt/mediastack
 chmod +x bin/media bin/media-service
 find lib modules tests -type f -name '*.sh' -exec chmod +x {} \;
 ln -sf /opt/mediastack/bin/media /usr/local/bin/media
 ```
+
+> La v2.1 est sur la branche `feature/mediastack-2.1`. Après fusion dans `main`, un `git clone` classique suffira.
 
 Installer Jellyfin (et Caddy automatiquement) :
 
