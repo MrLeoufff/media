@@ -13,63 +13,22 @@ Services intégrés :
 
 ---
 
-## Installation rapide
+## Installation
 
-Prérequis : Debian / Ubuntu Server / Raspberry Pi OS 64 bits, Docker + Compose plugin, Python 3.
+Guide dédié (recommandé) : **[INSTALL.md](INSTALL.md)** — procédure complète en ~10 minutes.
+
+Résumé express :
 
 ```bash
-apt update && apt install -y git curl ca-certificates python3
-curl -fsSL https://get.docker.com | sh
-systemctl enable --now docker
-
 git clone https://github.com/MrLeoufff/media.git /opt/mediastack
-cd /opt/mediastack
-git checkout v2.2.0
-chmod +x bin/media bin/media-service
-find lib modules tests -type f -name '*.sh' -exec chmod +x {} \;
-ln -sf /opt/mediastack/bin/media /usr/local/bin/media
-```
+cd /opt/mediastack && git checkout v2.2.0
+# … droits + symlink : voir INSTALL.md
 
-> Release courante : tag Git `v2.2.0` (branche `main`).
-
-Installer Jellyfin (et Caddy automatiquement) :
-
-```bash
-# Interactif : demande le domaine et le mode TLS
-media module install jellyfin
-
-# Ou explicite (scripts / non interactif)
 media module install jellyfin --domain media.example.fr --tls off
-media module install jellyfin --domain media.example.fr --tls auto
-```
-
-Pendant l’install (TTY), MediaStack propose :
-
-1. **domaine** (ou Entrée = conserver / mode LAN)  
-2. **mode TLS** :
-   - `off` — HTTP backend, TLS terminé en amont (ex. **m710q**)
-   - `auto` — HTTPS automatique Caddy (MediaStack = edge public)
-
-Sans TTY (CI/script), le mode mémorisé est conservé (`off` par défaut).
-
-### Topologie reverse-proxy
-
-| Rôle | Hôte | Rôle TLS |
-|------|------|----------|
-| Edge public (80/443) | ex. **m710q** | Termine HTTPS (`media.dwg-dev.fr` → backend LAN) |
-| MediaStack | ex. **Aspire** | HTTP backend (`http://media…` ou `:80`) |
-
-```bash
-media domain configure media.dwg-dev.fr --tls off
-media domain configure media.example.fr --tls auto
-```
-
-Vérifier :
-
-```bash
 media doctor
-media module list
 ```
+
+> Release : tag `v2.2.0` · derrière un reverse-proxy → `--tls off` · edge public → `--tls auto`
 
 ---
 
@@ -79,6 +38,7 @@ media module list
 mediastack/
 ├── bin/media                 # CLI principale (v2.2.0)
 ├── VERSION                   # version semver
+├── INSTALL.md                # guide d'installation
 ├── CHANGELOG.md
 ├── modules/<nom>/
 │   ├── module.yml            # manifeste (deps, storage, proxy)
