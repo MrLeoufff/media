@@ -123,13 +123,19 @@ assert_true "install caddy mock" \
     module_install caddy "media.example.test" "off"
 assert_true "caddy activé" module_is_enabled caddy
 
-assert_true "install jellyfin mock" \
-    module_install jellyfin "media.example.test" "off"
+install_rc=0
+jellyfin_out="$(module_install jellyfin "media.example.test" "off" 2>&1)" || install_rc=$?
+assert_true "install jellyfin mock" test "${install_rc}" -eq 0
 assert_true "jellyfin activé" module_is_enabled jellyfin
 assert_true "Caddyfile HTTP généré" \
     grep -q 'http://media.example.test' "${MEDIASTACK_CADDYFILE}"
 assert_true "service_start jellyfin appelé" \
     grep -q 'service_start jellyfin' "${TEST_LOG}"
+printf '%s\n' "${jellyfin_out}" > "${TMP_HOME}/jellyfin-install.out"
+assert_true "checklist réseau affichée (top-level)" \
+    grep -q 'Box / routeur' "${TMP_HOME}/jellyfin-install.out"
+assert_true "checklist mentionne le DNS" \
+    grep -q 'enregistrement DNS' "${TMP_HOME}/jellyfin-install.out"
 
 # Conflit proxy : second module sur / ne doit PAS rester activé
 mkdir -p "${MEDIASTACK_MODULES_DIR}/fakeroot"

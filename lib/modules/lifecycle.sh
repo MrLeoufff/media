@@ -267,12 +267,67 @@ module_install_summary() {
     echo
 }
 
+# Checklist réseau affichée une seule fois (install top-level, pas les deps).
+module_install_next_steps() {
+    local domain
+    local tls_mode
+    local site
+
+    domain="$(domain_get)"
+    tls_mode="$(tls_mode_get)"
+    site="$(proxy_site_address "${domain}")"
+
+    echo "============================================================"
+    echo " À faire de votre côté (réseau / accès)"
+    echo "============================================================"
+    echo
+    echo "  1. Nom de domaine"
+    if [[ -n "${domain}" ]]; then
+        echo "     Domaine configuré : ${domain}"
+        echo "     Créez un enregistrement DNS (A/AAAA) qui pointe vers"
+        echo "     votre box / le serveur qui termine le HTTPS."
+    else
+        echo "     Aucun domaine : accès LAN uniquement (:80)."
+        echo "     Pour Internet, configurez un domaine puis :"
+        echo "       media domain configure <votre.domaine> --tls off|auto"
+    fi
+    echo
+    echo "  2. Box / routeur (NAT / redirections)"
+    if [[ "${tls_mode}" == "auto" ]]; then
+        echo "     Mode TLS = auto (MediaStack = edge public)"
+        echo "     Ouvrez et redirigez vers CE serveur :"
+        echo "       - TCP 80  (HTTP / challenge Let's Encrypt)"
+        echo "       - TCP 443 (HTTPS)"
+    else
+        echo "     Mode TLS = off (TLS géré en amont, ex. m710q)"
+        echo "     Sur la box, ouvrez 80/443 vers votre reverse-proxy edge."
+        echo "     L'edge doit faire reverse_proxy vers ce serveur :80."
+        echo "     MediaStack n'a pas besoin d'être exposé directement."
+    fi
+    echo
+    echo "  3. Pare-feu du serveur"
+    echo "     Autorisez au minimum le port 80 (et 443 si tls=auto)."
+    echo "     Exemple : media security firewall"
+    echo
+    echo "  4. Vérifications"
+    echo "     media doctor"
+    echo "     media status"
+    if [[ -n "${domain}" ]]; then
+        echo "     URL attendue : ${site}"
+    fi
+    echo
+    echo "  Guide complet : /opt/mediastack/INSTALL.md"
+    echo "============================================================"
+    echo
+}
+
 module_install() {
     local module_name="$1"
     local domain="${2:-}"
     local tls_mode="${3:-}"
-    local network_name
-    local container_name
+    local previous_depth="${MODULE_INSTALL_DEPTH:-0}"
+    local top_level=false
+    local rc=0
 
     if [[ -z "${module_name}" ]]; then
         module_lifecycle_error "Nom du module manquant."
@@ -292,6 +347,32 @@ module_install() {
     require_root
     require_command docker
     require_command python3
+
+    # Profondeur : les dépendances (ex. caddy) ne réaffichent pas la checklist.
+    MODULE_INSTALL_DEPTH=$((previous_depth + 1))
+    export MODULE_INSTALL_DEPTH
+    if (( MODULE_INSTALL_DEPTH == 1 )); then
+        top_level=true
+    fi
+
+    module_install_execute \
+        "${module_name}" \
+        "${domain}" \
+        "${tls_mode}" \
+        "${top_level}" || rc=$?
+
+    MODULE_INSTALL_DEPTH="${previous_depth}"
+    export MODULE_INSTALL_DEPTH
+    return "${rc}"
+}
+
+module_install_execute() {
+    local module_name="$1"
+    local domain="${2:-}"
+    local tls_mode="${3:-}"
+    local top_level="${4:-false}"
+    local network_name
+    local container_name
 
     # Choix utilisateur si non fournis en CLI (--domain / --tls).
     if [[ -z "${domain}" ]]; then
@@ -361,6 +442,9 @@ module_install() {
     module_lifecycle_info "Diagnostic du module..."
     if ! module_lifecycle_run_doctor "${module_name}"; then
         module_install_summary "${module_name}"
+        if [[ "${top_level}" == true ]]; then
+            module_install_next_steps
+        fi
         module_lifecycle_error \
             "Installation terminée avec erreur de diagnostic."
         module_lifecycle_info \
@@ -370,6 +454,9 @@ module_install() {
 
     module_install_summary "${module_name}"
     module_lifecycle_ok "Installation terminée : ${module_name}"
+    if [[ "${top_level}" == true ]]; then
+        module_install_next_steps
+    fi
 }
 
 module_uninstall() {

@@ -98,6 +98,10 @@ tls_mode_prompt() {
     echo "  1) off  — HTTP backend (TLS terminé en amont, ex. m710q)"
     echo "  2) auto — HTTPS automatique Let's Encrypt (MediaStack = edge)"
     echo
+    echo "Rappel box / ports :"
+    echo "  - off  → ouvrir 80/443 vers l'edge ; MediaStack reste en LAN :80"
+    echo "  - auto → ouvrir 80/443 vers CE serveur"
+    echo
     echo "Mode actuel : ${current}"
     read -r -p "Choix [1/2] (Entrée = conserver ${current}) : " choice
 
@@ -134,6 +138,9 @@ domain_prompt() {
     echo
     echo "Domaine public MediaStack"
     echo "------------------------------------------------------------"
+    echo "Pour un accès Internet, un nom de domaine (DNS A/AAAA) est requis."
+    echo "Sans domaine : accès LAN uniquement sur le port 80."
+    echo
     if [[ -n "${current}" ]]; then
         echo "Domaine actuel : ${current}"
         read -r -p "Nouveau domaine (Entrée = conserver) : " answer
