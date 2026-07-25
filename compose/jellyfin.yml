@@ -9,7 +9,7 @@ services:
     volumes:
       - /opt/media/jellyfin/config:/config
       - /opt/media/jellyfin/cache:/cache
-      - /opt/media/media:/media
+      - /opt/media:/media
 
     devices:
       - /dev/dri:/dev/dri
