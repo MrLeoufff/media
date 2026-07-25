@@ -33,16 +33,15 @@ backup_sync_dir() {
     local source_dir="$1"
     local dest_dir="$2"
     local dry_run="${3:-false}"
-    local -a rsync_args
+    local -a rsync_args=(-a --delete)
 
     [[ -d "${source_dir}" ]] || return 0
 
-    mkdir -p "${dest_dir}"
-
-    rsync_args=(-a --delete)
     if [[ "${dry_run}" == true ]]; then
         rsync_args+=(--dry-run --itemize-changes)
         media_info "dry-run rsync : ${source_dir}/ -> ${dest_dir}/"
+    else
+        mkdir -p "${dest_dir}"
     fi
 
     rsync "${rsync_args[@]}" "${source_dir}/" "${dest_dir}/"
@@ -156,17 +155,17 @@ restore_backup() {
         media_info "Arrêt des services..."
         service_stop_all ||
             media_die "Impossible d'arrêter tous les services."
+
+        mkdir -p \
+            "${MEDIASTACK_CONFIG_DIR}" \
+            "${MEDIASTACK_ENABLED_DIR}" \
+            "${JELLYFIN_DIR}/config" \
+            "${PORTAINER_DIR}/data" \
+            "${CADDY_DIR}" \
+            "${HOMEPAGE_DIR}"
     else
         media_info "dry-run : arrêt des services ignoré."
     fi
-
-    mkdir -p \
-        "${MEDIASTACK_CONFIG_DIR}" \
-        "${MEDIASTACK_ENABLED_DIR}" \
-        "${JELLYFIN_DIR}/config" \
-        "${PORTAINER_DIR}/data" \
-        "${CADDY_DIR}" \
-        "${HOMEPAGE_DIR}"
 
     backup_sync_dir "${stage_dir}/conf" "${MEDIASTACK_CONFIG_DIR}" "${dry_run}"
     backup_sync_dir "${stage_dir}/data/jellyfin/config" "${JELLYFIN_DIR}/config" "${dry_run}"
