@@ -174,6 +174,8 @@ ln -sfn "../modules/fakeroot" "${MEDIASTACK_ENABLED_DIR}/fakeroot"
 
 assert_false "refus de plusieurs routes proxy sur /" \
     proxy_write_caddyfile "media.example.test"
+assert_false "validation candidat fakeroot refuse / concurrent" \
+    proxy_validate_module_routes fakeroot
 
 rm -f "${MEDIASTACK_ENABLED_DIR}/fakeroot"
 rm -rf "${MEDIASTACK_MODULES_DIR}/fakeroot"

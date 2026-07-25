@@ -322,10 +322,22 @@ module_install() {
     module_ensure_network "${network_name}" || return 1
     module_ensure_storage "${module_name}" || return 1
 
+    # Valider les routes proxy AVANT activation (évite enabled/ orphelin).
+    if ! proxy_validate_module_routes "${module_name}"; then
+        module_lifecycle_error \
+            "Conflit de routes proxy — module ${module_name} non activé."
+        return 1
+    fi
+
     module_enable "${module_name}" || return 1
     module_lifecycle_ok "Module activé : ${module_name}"
 
-    proxy_regenerate "$(domain_get)" || return 1
+    if ! proxy_regenerate "$(domain_get)"; then
+        module_disable "${module_name}" || true
+        module_lifecycle_error \
+            "Échec de génération du proxy — module ${module_name} désactivé."
+        return 1
+    fi
 
     module_run_optional_script "${module_name}" install
 
@@ -337,13 +349,22 @@ module_install() {
     )"
 
     module_lifecycle_info "Démarrage Docker Compose (${module_name})..."
-    service_start "${module_name}" || return 1
+    if ! service_start "${module_name}"; then
+        module_lifecycle_error \
+            "Échec du démarrage Docker pour ${module_name}."
+        module_lifecycle_info \
+            "Le module reste activé pour permettre le dépannage."
+        return 1
+    fi
     module_lifecycle_ok "Conteneur démarré : ${container_name}"
 
     module_lifecycle_info "Diagnostic du module..."
     if ! module_lifecycle_run_doctor "${module_name}"; then
+        module_install_summary "${module_name}"
         module_lifecycle_error \
-            "Installation de ${module_name} annulée : échec du diagnostic."
+            "Installation terminée avec erreur de diagnostic."
+        module_lifecycle_info \
+            "Le module ${module_name} reste installé pour permettre le dépannage."
         return 1
     fi
 
@@ -430,8 +451,15 @@ module_uninstall() {
             [[ -n "${path}" ]] || continue
             [[ "${path}" == *.sock ]] && continue
             [[ "${path}" == */Caddyfile ]] && continue
+            # Jamais supprimer la racine des données
             [[ "${path}" == "${MEDIASTACK_DATA}" ]] && continue
-            [[ "${path}" == "${MEDIASTACK_HOME}"* ]] && continue
+            # Protéger le code MediaStack, mais autoriser MEDIASTACK_DATA
+            # même s'il est placé sous MEDIASTACK_HOME (cas des tests).
+            if [[ "${path}" == "${MEDIASTACK_HOME}" || "${path}" == "${MEDIASTACK_HOME}"/* ]]; then
+                if [[ "${path}" != "${MEDIASTACK_DATA}" && "${path}" != "${MEDIASTACK_DATA}"/* ]]; then
+                    continue
+                fi
+            fi
 
             if [[ -e "${path}" ]]; then
                 rm -rf "${path}"

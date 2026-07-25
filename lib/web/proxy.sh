@@ -217,36 +217,68 @@ proxy_is_root_path() {
     [[ -z "${path}" || "${path}" == "/" || "${path}" == "/*" ]]
 }
 
-proxy_collect_routes() {
-    local module_name
+proxy_emit_route() {
+    local module_name="$1"
     local target
     local path
 
+    if ! proxy_module_enabled "${module_name}"; then
+        return 0
+    fi
+
+    target="$(
+        module_metadata_get_or_default \
+            "${module_name}" \
+            proxy.target \
+            ""
+    )"
+
+    [[ -n "${target}" ]] || return 0
+
+    path="$(
+        module_metadata_get_or_default \
+            "${module_name}" \
+            proxy.path \
+            "/"
+    )"
+
+    printf '%s\t%s\t%s\n' "${module_name}" "${path}" "${target}"
+}
+
+# Collecte les routes des modules enabled.
+# Argument optionnel : module candidat (pas encore enabled) à inclure.
+proxy_collect_routes() {
+    local candidate_module="${1:-}"
+    local module_name
+    local seen=""
+
     while IFS= read -r module_name; do
         [[ -n "${module_name}" ]] || continue
-
-        if ! proxy_module_enabled "${module_name}"; then
-            continue
-        fi
-
-        target="$(
-            module_metadata_get_or_default \
-                "${module_name}" \
-                proxy.target \
-                ""
-        )"
-
-        [[ -n "${target}" ]] || continue
-
-        path="$(
-            module_metadata_get_or_default \
-                "${module_name}" \
-                proxy.path \
-                "/"
-        )"
-
-        printf '%s\t%s\t%s\n' "${module_name}" "${path}" "${target}"
+        proxy_emit_route "${module_name}"
+        seen="${seen}|${module_name}|"
     done < <(module_enabled_names)
+
+    if [[ -n "${candidate_module}" && "${seen}" != *"|${candidate_module}|"* ]]; then
+        proxy_emit_route "${candidate_module}"
+    fi
+}
+
+# Valide les routes avant activation d'un module (évite enabled/ orphelin).
+proxy_validate_module_routes() {
+    local module_name="$1"
+    local routes=()
+    local line
+
+    while IFS= read -r line; do
+        [[ -n "${line}" ]] || continue
+        routes+=("${line}")
+    done < <(proxy_collect_routes "${module_name}")
+
+    if (( ${#routes[@]} == 0 )); then
+        return 0
+    fi
+
+    proxy_validate_routes "${routes[@]}"
 }
 
 # Refuse plusieurs modules sur le même path (dont /).

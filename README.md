@@ -84,9 +84,12 @@ mediastack/
 ├── enabled/                  # symlinks vers modules activés
 ├── conf/
 │   ├── Caddyfile             # généré automatiquement
-│   └── domain                # domaine mémorisé
+│   ├── domain                # domaine mémorisé
+│   └── tls-mode              # off|auto
 ├── lib/                      # bibliothèques Bash
-├── tests/smoke_test.sh
+├── tests/
+│   ├── smoke_test.sh
+│   └── lifecycle_mock_test.sh
 └── media.sh                  # legacy (deprecated)
 ```
 
@@ -102,7 +105,7 @@ Chemins runtime :
 ```bash
 media module list
 media module info <module>
-media module install <module> [--domain <fqdn>]
+media module install <module> [--domain <fqdn>] [--tls off|auto]
 media module uninstall <module> [--keep-data|--purge] [--yes]
 media module enable <module>
 media module disable <module>
@@ -112,7 +115,9 @@ media module doctor <module>
 ### Install (zero-touch)
 
 ```bash
-media module install jellyfin --domain media.dwg-dev.fr
+media module install jellyfin \
+  --domain media.dwg-dev.fr \
+  --tls off
 ```
 
 Enchaîne :
@@ -247,6 +252,7 @@ Ne pas éditer `conf/Caddyfile` à la main : relancer `media domain configure` o
 
 ```bash
 ./tests/smoke_test.sh
+./tests/lifecycle_mock_test.sh
 ```
 
 ---
